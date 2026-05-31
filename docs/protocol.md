@@ -1,6 +1,6 @@
 # 协议设计
 
-Stage 2 实现本地文本命令协议，Stage 3 将同一协议接入 Linux TCP Server。当前不是完整 Redis 协议，只使用简化 RESP 风格响应。
+LightKV 当前支持本地 CLI 和 Linux TCP Server 的文本命令协议。当前不是完整 Redis 协议，只使用简化 RESP 风格响应。
 
 ## TCP 使用方式
 
@@ -13,16 +13,6 @@ Stage 2 实现本地文本命令协议，Stage 3 将同一协议接入 Linux TCP
 nc 127.0.0.1 6379
 ```
 
-## 解析规则
-
-- 按空白字符分割输入。
-- 命令大小写不敏感。
-- 参数大小写保持原样。
-- value 暂不支持空格。
-- 空行返回 Invalid，错误信息为 `empty command`。
-- 未知命令返回 Invalid。
-- 参数数量错误返回 Invalid。
-
 ## 支持命令
 
 | 命令 | 参数数量 | 示例 |
@@ -32,6 +22,8 @@ nc 127.0.0.1 6379
 | GET | 1 | `GET name` |
 | DEL | 1 | `DEL name` |
 | EXISTS | 1 | `EXISTS name` |
+| EXPIRE | 2 | `EXPIRE name 10` |
+| TTL | 1 | `TTL name` |
 | SIZE | 0 | `SIZE` |
 | CLEAR | 0 | `CLEAR` |
 | QUIT | 0 | `QUIT` |
@@ -44,41 +36,41 @@ nc 127.0.0.1 6379
 - Bulk string：`$5\r\nyifei\r\n`
 - Null bulk string：`$-1\r\n`
 
-## 命令语义
+## TTL 语义
 
-- `PING`：返回 `+PONG\r\n`
-- `SET key value`：写入 key，成功返回 `+OK\r\n`
-- `GET key`：存在时返回 bulk string，不存在时返回 `$-1\r\n`
-- `DEL key`：删除成功返回 `:1\r\n`，key 不存在返回 `:0\r\n`
-- `EXISTS key`：存在返回 `:1\r\n`，不存在返回 `:0\r\n`
-- `SIZE`：返回当前 key 数量
-- `CLEAR`：清空 KVStore，返回 `+OK\r\n`
-- `QUIT`：返回 `+BYE\r\n`
-- Invalid：返回 `-ERR message\r\n`
+`EXPIRE key seconds`：
 
-## nc 示例
+- key 存在且设置成功，返回 `:1\r\n`
+- key 不存在，返回 `:0\r\n`
+- seconds <= 0 时，如果 key 存在则删除并返回 `:1\r\n`
+- seconds 不是合法整数，返回 `-ERR invalid expire seconds\r\n`
+
+`TTL key`：
+
+- key 不存在，返回 `:-2\r\n`
+- key 存在但没有过期时间，返回 `:-1\r\n`
+- key 存在且有过期时间，返回剩余秒数 `:N\r\n`
+- key 已过期时，先删除再返回 `:-2\r\n`
+
+## 示例
 
 ```text
-PING
-SET name yifei
-GET name
-EXISTS name
-DEL name
-GET name
-SIZE
-QUIT
+SET token abc
++OK
+EXPIRE token 3
+:1
+TTL token
+:3
+GET token
+$3
+abc
 ```
 
-期望响应：
+等待过期后：
 
 ```text
-+PONG
-+OK
-$5
-yifei
-:1
-:1
+GET token
 $-1
-:0
-+BYE
+TTL token
+:-2
 ```

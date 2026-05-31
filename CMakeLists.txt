@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Threads REQUIRED)
+
 if(WIN32)
     message(STATUS "Building LightKV scaffold on Windows. Linux-only network modules will be added in later stages.")
 elseif(UNIX AND NOT APPLE)
@@ -55,6 +57,7 @@ target_include_directories(lightkv_server PRIVATE
 
 if(UNIX AND NOT APPLE)
     target_compile_definitions(lightkv_server PRIVATE LIGHTKV_ENABLE_TCP_SERVER)
+    target_link_libraries(lightkv_server PRIVATE Threads::Threads)
 endif()
 
 add_executable(lightkv_cli
@@ -102,6 +105,8 @@ target_include_directories(test_command_executor PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
+target_link_libraries(test_command_executor PRIVATE Threads::Threads)
+
 add_test(NAME test_command_executor COMMAND test_command_executor)
 
 add_executable(test_buffer
@@ -114,3 +119,16 @@ target_include_directories(test_buffer PRIVATE
 )
 
 add_test(NAME test_buffer COMMAND test_buffer)
+
+add_executable(test_ttl
+    tests/test_ttl.cpp
+    ${LIGHTKV_CORE_SOURCES}
+)
+
+target_include_directories(test_ttl PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_ttl PRIVATE Threads::Threads)
+
+add_test(NAME test_ttl COMMAND test_ttl)

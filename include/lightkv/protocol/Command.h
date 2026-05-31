@@ -11,7 +11,9 @@ enum class CommandType {
     Get,
     Del,
     Exists,
+    Expire,
     Size,
+    Ttl,
     Clear,
     Quit,
     Invalid
@@ -25,4 +27,3 @@ struct Command {
 };
 
 }  // namespace lightkv
-

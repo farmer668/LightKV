@@ -7,7 +7,7 @@
 - [x] Stage 1：单机线程安全 KVStore
 - [x] Stage 2：文本协议解析和本地 CLI
 - [x] Stage 3：Linux TCP Server + epoll
-- [ ] Stage 4：TTL 过期
+- [x] Stage 4：TTL 过期机制
 - [ ] Stage 5：LRU 淘汰
 - [ ] Stage 6：WAL 持久化恢复
 - [ ] Stage 7：配置、日志、metrics

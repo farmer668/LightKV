@@ -41,9 +41,20 @@ int main() {
     assert(command.args.size() == 1);
     assert(command.args[0] == "name");
 
+    command = parser.parseLine("EXPIRE name 10");
+    assertType(command, lightkv::CommandType::Expire);
+    assert(command.args.size() == 2);
+    assert(command.args[0] == "name");
+    assert(command.args[1] == "10");
+
     command = parser.parseLine("SIZE");
     assertType(command, lightkv::CommandType::Size);
     assert(command.args.empty());
+
+    command = parser.parseLine("TTL name");
+    assertType(command, lightkv::CommandType::Ttl);
+    assert(command.args.size() == 1);
+    assert(command.args[0] == "name");
 
     command = parser.parseLine("CLEAR");
     assertType(command, lightkv::CommandType::Clear);
@@ -61,11 +72,25 @@ int main() {
     assert(command.type == lightkv::CommandType::Invalid);
     assert(!command.error.empty());
 
+    command = parser.parseLine("EXPIRE name");
+    assert(command.type == lightkv::CommandType::Invalid);
+    assert(!command.error.empty());
+
+    command = parser.parseLine("TTL");
+    assert(command.type == lightkv::CommandType::Invalid);
+    assert(!command.error.empty());
+
     command = parser.parseLine("set mixed Case");
     assertType(command, lightkv::CommandType::Set);
     assert(command.args.size() == 2);
     assert(command.args[0] == "mixed");
     assert(command.args[1] == "Case");
+
+    command = parser.parseLine("expire name 10");
+    assertType(command, lightkv::CommandType::Expire);
+    assert(command.args.size() == 2);
+    assert(command.args[0] == "name");
+    assert(command.args[1] == "10");
 
     command = parser.parseLine("   ");
     assert(command.type == lightkv::CommandType::Invalid);
@@ -77,4 +102,3 @@ int main() {
 
     return 0;
 }
-

@@ -27,7 +27,12 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port) {
                 return false;
             }
             try {
-                port = std::stoi(argv[++i]);
+                std::size_t parsed = 0;
+                const std::string port_text = argv[++i];
+                port = std::stoi(port_text, &parsed, 10);
+                if (parsed != port_text.size()) {
+                    return false;
+                }
             } catch (...) {
                 return false;
             }
@@ -47,7 +52,7 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port) {
 
 int main(int argc, char* argv[]) {
     std::cout << "LightKV server starting..." << '\n';
-    std::cout << "Stage 3 - Linux TCP Server with epoll" << '\n';
+    std::cout << "Stage 4 - TTL expiration" << '\n';
 
     std::string host = "127.0.0.1";
     int port = 6379;

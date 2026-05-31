@@ -17,3 +17,9 @@
 - Windows 当前环境仍缺少 `cmake`、`ctest`、`make`。
 - Linux-only 的 `TcpServer.cpp` 使用 epoll/socket 头文件，Windows 下通过 CMake 平台判断跳过编译。
 - 已使用 Windows 可用的 `g++` 验证 Windows scaffold server、`test_buffer` 和既有平台无关测试。
+
+## Stage 4
+
+- Windows 当前环境仍缺少 `cmake`、`ctest`、`make`。
+- Linux-only TCP Server 完整验证留给 Ubuntu 环境。
+- 已使用 Windows 可用的 `g++` 验证 TTL 核心、协议命令和平台无关测试。

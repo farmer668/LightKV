@@ -56,7 +56,9 @@ Command Parser::parseLine(const std::string& line) const {
         {"GET", CommandType::Get},
         {"DEL", CommandType::Del},
         {"EXISTS", CommandType::Exists},
+        {"EXPIRE", CommandType::Expire},
         {"SIZE", CommandType::Size},
+        {"TTL", CommandType::Ttl},
         {"CLEAR", CommandType::Clear},
         {"QUIT", CommandType::Quit},
     };
@@ -82,9 +84,11 @@ Command Parser::parseLine(const std::string& line) const {
         case CommandType::Get:
         case CommandType::Del:
         case CommandType::Exists:
+        case CommandType::Ttl:
             expectArgCount(command, 1);
             break;
         case CommandType::Set:
+        case CommandType::Expire:
             expectArgCount(command, 2);
             break;
         case CommandType::Invalid:

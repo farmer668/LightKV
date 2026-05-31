@@ -13,39 +13,40 @@ LightKV 规划为一个模块化的 C++17 KV 缓存系统。
 - `cluster`：consistent hash
 - `client`：LightKVClient、ClusterClient
 
-## common
-
-Stage 1 已实现 `Status`，用于表达操作结果。当前只保留 OK、NotFound、InvalidArgument、Error 四类状态，避免过度设计。
-
 ## storage
 
-Stage 1 已实现线程安全的单机内存 KVStore。
+KVStore 是当前核心存储模块。
 
-- `KVStore` 使用 `std::unordered_map<std::string, Entry>` 保存数据。
-- `std::shared_mutex` 用于读多写少场景：set、del、clear 使用独占锁，get、exists、size 使用共享锁。
-- `Entry` 保存字符串 value，并预留 TTL 字段；TTL 逻辑会在 Stage 4 实现。
-- 当前不包含 LRU、WAL 或复制逻辑。
+- 使用 `std::unordered_map<std::string, Entry>` 保存数据。
+- 使用 `std::shared_mutex` 保护并发访问。
+- `Entry` 保存 `value`、`has_ttl` 和 `expire_at`。
+- `SET` 会覆盖 value 并清除旧 TTL。
+- `GET`、`EXISTS`、`TTL` 会在访问时发现并删除已过期 key。
+- `SIZE` 会先清理当前已过期 key，再返回数量。
+- `cleanupExpired()` 扫描一批 key 并删除已过期 key，用于后台定期清理。
+
+## TTL 设计
+
+- `has_ttl == false` 表示永久 key。
+- `has_ttl == true` 且 `now >= expire_at` 表示 key 已过期。
+- 过期判断和删除集中在 KVStore 内部，Parser、CommandExecutor、TcpServer 不承载 TTL 核心逻辑。
+- 后台线程和客户端请求都通过 KVStore 内部锁保护，保证线程安全。
 
 ## protocol
 
-Stage 2 已实现本地文本协议模块。
-
 - `Parser` 负责将一行文本命令解析为 `Command`。
-- `Command` 保存命令类型、参数、原始输入和解析错误。
 - `CommandExecutor` 负责将 `Command` 转换为 KVStore 操作。
 - `Response` 负责简化 RESP 风格编码。
-- `lightkv_cli` 复用 Parser、CommandExecutor 和 KVStore，当前只操作本地内存。
+- Stage 4 新增 `EXPIRE` 和 `TTL`。
 
 ## net
-
-Stage 3 已实现 Linux-only TCP Server。
 
 - `TcpServer` 负责创建监听 socket、配置非阻塞 fd、维护 epoll 事件循环、accept 新连接、读取客户端数据并返回响应。
 - `TcpConnection` 保存单个连接的 fd、peer 地址、输入缓冲和关闭状态。
 - `Buffer` 负责按行提取命令，处理半包和粘包场景。
-- 网络层复用已有 Parser、CommandExecutor 和 KVStore，不在连接对象中写业务逻辑。
-- 当前为单线程 epoll，不包含线程池、异步写队列、Timer、TTL、LRU 或 WAL。
+- Linux TCP Server 复用 Parser、CommandExecutor 和 KVStore。
+- Stage 4 中 TcpServer 启动后台过期扫描线程，每 1 秒调用 KVStore 的 `cleanupExpired()`。
 
-## 后续 Linux 验证路线
+## 后续路线
 
-平台无关的 core、storage、protocol、persistence 会继续在 Windows 和 Linux 上共同构建；Linux-only 的网络层、epoll、server runtime、replication 和 bench 会在 Linux 阶段实现并验证。
+Stage 5 将实现 LRU 淘汰机制。当前不包含 WAL、主从复制、一致性哈希或复杂定时器堆。

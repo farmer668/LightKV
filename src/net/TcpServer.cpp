@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -33,6 +34,8 @@ TcpServer::TcpServer(std::string host, int port)
     : host_(std::move(host)), port_(port), executor_(store_) {}
 
 TcpServer::~TcpServer() {
+    stopExpireWorker();
+
     for (auto& item : connections_) {
         ::close(item.first);
     }
@@ -67,6 +70,7 @@ bool TcpServer::start() {
         return false;
     }
 
+    startExpireWorker();
     return true;
 }
 
@@ -138,6 +142,25 @@ bool TcpServer::setupListenSocket() {
     }
 
     return true;
+}
+
+void TcpServer::startExpireWorker() {
+    running_.store(true);
+    expire_thread_ = std::thread([this]() {
+        while (running_.load()) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (running_.load()) {
+                store_.cleanupExpired();
+            }
+        }
+    });
+}
+
+void TcpServer::stopExpireWorker() {
+    running_.store(false);
+    if (expire_thread_.joinable()) {
+        expire_thread_.join();
+    }
 }
 
 bool TcpServer::setNonBlocking(int fd) {

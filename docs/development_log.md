@@ -35,3 +35,12 @@
 - `lightkv_server` 在 Linux 下支持启动 TCP Server。
 - TCP Server 复用 Parser、CommandExecutor 和 KVStore。
 - 支持通过 `nc 127.0.0.1 6379` 进行文本协议测试。
+
+## Stage 4
+
+- KVStore 增加 TTL 支持。
+- 新增 `EXPIRE` / `TTL` 命令。
+- 实现 get、exists、ttl、size 的惰性删除。
+- 实现 `cleanupExpired()`，用于批量清理已过期 key。
+- TCP Server 启动后启动后台过期扫描线程。
+- 新增 `test_ttl` 覆盖 TTL 核心语义。

@@ -3,7 +3,9 @@
 #include "lightkv/storage/KVStore.h"
 
 #include <cassert>
+#include <chrono>
 #include <string>
+#include <thread>
 
 int main() {
     lightkv::KVStore store;
@@ -27,6 +29,20 @@ int main() {
     assert(executor.execute(parser.parseLine("SIZE")) == ":0\r\n");
 
     assert(executor.execute(parser.parseLine("SET a 1")) == "+OK\r\n");
+    assert(executor.execute(parser.parseLine("TTL a")) == ":-1\r\n");
+    assert(executor.execute(parser.parseLine("EXPIRE a 10")) == ":1\r\n");
+    const auto ttl_a = executor.execute(parser.parseLine("TTL a"));
+    assert(ttl_a == ":10\r\n" || ttl_a == ":9\r\n");
+    assert(executor.execute(parser.parseLine("EXPIRE missing 10")) == ":0\r\n");
+    assert(executor.execute(parser.parseLine("TTL missing")) == ":-2\r\n");
+    const auto invalid_expire = executor.execute(parser.parseLine("EXPIRE a abc"));
+    assert(invalid_expire.rfind("-ERR", 0) == 0);
+
+    assert(executor.execute(parser.parseLine("SET tmp 1")) == "+OK\r\n");
+    assert(executor.execute(parser.parseLine("EXPIRE tmp 1")) == ":1\r\n");
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    assert(executor.execute(parser.parseLine("GET tmp")) == "$-1\r\n");
+
     assert(executor.execute(parser.parseLine("SET b 2")) == "+OK\r\n");
     assert(executor.execute(parser.parseLine("SIZE")) == ":2\r\n");
     assert(executor.execute(parser.parseLine("CLEAR")) == "+OK\r\n");
@@ -39,4 +55,3 @@ int main() {
 
     return 0;
 }
-

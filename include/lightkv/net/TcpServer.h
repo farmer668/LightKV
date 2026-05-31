@@ -5,7 +5,9 @@
 #include "lightkv/protocol/Parser.h"
 #include "lightkv/storage/KVStore.h"
 
+#include <atomic>
 #include <string>
+#include <thread>
 #include <unordered_map>
 
 namespace lightkv {
@@ -20,6 +22,8 @@ public:
 
 private:
     bool setupListenSocket();
+    void startExpireWorker();
+    void stopExpireWorker();
     bool setNonBlocking(int fd);
     void handleAccept();
     void handleClientRead(int client_fd);
@@ -34,7 +38,8 @@ private:
     Parser parser_;
     CommandExecutor executor_;
     std::unordered_map<int, TcpConnection> connections_;
+    std::atomic<bool> running_{false};
+    std::thread expire_thread_;
 };
 
 }  // namespace lightkv
-
