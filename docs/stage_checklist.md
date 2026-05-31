@@ -4,7 +4,7 @@
 - [x] Windows scaffold build supported
 - [x] Linux final target planned
 - [x] epoll will be implemented in later Linux stage
-- [ ] Stage 1：单机线程安全 KVStore
+- [x] Stage 1：单机线程安全 KVStore
 - [ ] Stage 2：文本协议解析和本地 CLI
 - [ ] Stage 3：Linux TCP Server + epoll
 - [ ] Stage 4：TTL 过期

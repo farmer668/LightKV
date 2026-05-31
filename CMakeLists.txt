@@ -16,8 +16,14 @@ elseif(UNIX)
     message(STATUS "Building LightKV for Linux/Unix target.")
 endif()
 
+set(LIGHTKV_CORE_SOURCES
+    src/common/Status.cpp
+    src/storage/KVStore.cpp
+)
+
 add_executable(lightkv_server
     src/main.cpp
+    ${LIGHTKV_CORE_SOURCES}
 )
 
 target_include_directories(lightkv_server PRIVATE
@@ -26,3 +32,13 @@ target_include_directories(lightkv_server PRIVATE
 
 enable_testing()
 
+add_executable(test_kvstore
+    tests/test_kvstore.cpp
+    ${LIGHTKV_CORE_SOURCES}
+)
+
+target_include_directories(test_kvstore PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_kvstore COMMAND test_kvstore)

@@ -2,9 +2,22 @@
 
 LightKV 是一个基于 C++17 的轻量级 KV 缓存系统。
 
-## Stage 0
+## 当前阶段
 
-Stage 0 只完成项目初始化和工程骨架，不实现 KV 存储、TCP Server、epoll、Redis 协议、持久化、复制或分片等复杂业务逻辑。
+当前已完成：
+
+- Stage 0：项目骨架
+- Stage 1：线程安全内存 KVStore
+
+Stage 1 仍然不实现 TCP Server、文本协议 Parser、TTL 逻辑、LRU、WAL、复制或分片。
+
+## Stage 1 功能
+
+- 使用 `std::unordered_map<std::string, Entry>` 存储 KV 数据。
+- 使用 `std::shared_mutex` 保证并发读写安全，适合读多写少场景。
+- 支持 `set`、`get`、`del`、`exists`、`size`、`clear`。
+- `Entry` 预留 TTL 字段，Stage 1 暂不启用 TTL 逻辑。
+- 使用 `assert` 增加基础单元测试，不引入第三方库。
 
 ## 开发环境
 
@@ -14,7 +27,6 @@ Stage 0 只完成项目初始化和工程骨架，不实现 KV 存储、TCP Serv
 
 ## 后续规划
 
-- Stage 1：单机线程安全 KVStore
 - Stage 2：文本协议解析和本地 CLI
 - Stage 3：Linux TCP Server + epoll
 - Stage 4：TTL 过期
@@ -33,13 +45,17 @@ scripts\run_server.bat
 scripts\test.bat
 ```
 
-## Linux 验证
+## Ubuntu / Linux 构建
+
+Ubuntu 下直接执行 `make` 即可完成 CMake configure 和 build。
 
 ```sh
-bash scripts/linux_verify.sh
+make
+make run
+make test
 ```
 
-## CMake 构建
+也可以直接使用 CMake：
 
 ```sh
 cmake -S . -B build
@@ -47,11 +63,8 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
-## Make 构建
+完整 Linux 验证脚本：
 
 ```sh
-make build
-make run
-make test
-make clean
+bash scripts/linux_verify.sh
 ```

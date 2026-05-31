@@ -1,4 +1,6 @@
-.PHONY: build run test clean
+.PHONY: all build run test clean
+
+all: build
 
 build:
 	cmake -S . -B build
@@ -25,4 +27,3 @@ test:
 
 clean:
 	cmake -E remove_directory build
-
