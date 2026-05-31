@@ -17,3 +17,12 @@
 - 新增 `test_kvstore`，使用标准库 `assert` 覆盖基础 KV 操作。
 - 修改 CMake，将 Stage 1 核心源码加入 `lightkv_server`，并注册 `test_kvstore`。
 - 修改 Makefile，使直接执行 `make` 默认等价于 `make build`。
+
+## Stage 2
+
+- 新增协议解析模块：`Command`、`Parser`、`Response`、`CommandExecutor`。
+- 新增简化 RESP 风格 Response 编码。
+- 新增 `CommandExecutor`，将文本命令映射到 KVStore 操作。
+- 新增本地交互式 CLI：`lightkv_cli`。
+- 新增 parser 和 executor 测试：`test_parser`、`test_command_executor`。
+- 修改 `lightkv_server`，增加协议层轻量自检。

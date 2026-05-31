@@ -5,7 +5,7 @@
 - [x] Linux final target planned
 - [x] epoll will be implemented in later Linux stage
 - [x] Stage 1：单机线程安全 KVStore
-- [ ] Stage 2：文本协议解析和本地 CLI
+- [x] Stage 2：文本协议解析和本地 CLI
 - [ ] Stage 3：Linux TCP Server + epoll
 - [ ] Stage 4：TTL 过期
 - [ ] Stage 5：LRU 淘汰

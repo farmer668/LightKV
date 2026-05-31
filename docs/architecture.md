@@ -6,7 +6,7 @@ LightKV 规划为一个模块化的 C++17 KV 缓存系统。
 
 - `common`：Status、Logger、Config、Metrics
 - `storage`：KVStore、Entry、TTL、LRU
-- `protocol`：Command、Parser、Response
+- `protocol`：Command、Parser、Response、CommandExecutor
 - `net`：Linux TCP Server、epoll、Connection、Buffer
 - `persistence`：WAL、replay
 - `replication`：master/slave、offset sync
@@ -25,6 +25,16 @@ Stage 1 已实现线程安全的单机内存 KVStore。
 - `std::shared_mutex` 用于读多写少场景：set、del、clear 使用独占锁，get、exists、size 使用共享锁。
 - `Entry` 保存字符串 value，并预留 TTL 字段；TTL 逻辑会在 Stage 4 实现。
 - 当前不包含 LRU、WAL、网络协议或复制逻辑。
+
+## protocol
+
+Stage 2 已实现本地文本协议模块。
+
+- `Parser` 负责将一行文本命令解析为 `Command`。
+- `Command` 保存命令类型、参数、原始输入和解析错误。
+- `CommandExecutor` 负责将 `Command` 转换为 KVStore 操作。
+- `Response` 负责简化 RESP 风格编码。
+- `lightkv_cli` 复用 Parser、CommandExecutor 和 KVStore，当前只操作本地内存，不连接 TCP Server。
 
 ## 后续 Linux 验证路线
 
