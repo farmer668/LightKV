@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(WIN32)
     message(STATUS "Building LightKV scaffold on Windows. Linux-only network modules will be added in later stages.")
-elseif(UNIX)
+elseif(UNIX AND NOT APPLE)
     message(STATUS "Building LightKV for Linux/Unix target.")
 endif()
 
@@ -27,15 +27,35 @@ set(LIGHTKV_PROTOCOL_SOURCES
     src/protocol/CommandExecutor.cpp
 )
 
-add_executable(lightkv_server
+set(LIGHTKV_NET_COMMON_SOURCES
+    src/net/Buffer.cpp
+)
+
+set(LIGHTKV_SERVER_SOURCES
     src/main.cpp
     ${LIGHTKV_CORE_SOURCES}
     ${LIGHTKV_PROTOCOL_SOURCES}
 )
 
+if(UNIX AND NOT APPLE)
+    list(APPEND LIGHTKV_SERVER_SOURCES
+        ${LIGHTKV_NET_COMMON_SOURCES}
+        src/net/TcpConnection.cpp
+        src/net/TcpServer.cpp
+    )
+endif()
+
+add_executable(lightkv_server
+    ${LIGHTKV_SERVER_SOURCES}
+)
+
 target_include_directories(lightkv_server PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+if(UNIX AND NOT APPLE)
+    target_compile_definitions(lightkv_server PRIVATE LIGHTKV_ENABLE_TCP_SERVER)
+endif()
 
 add_executable(lightkv_cli
     tools/lightkv_cli.cpp
@@ -83,3 +103,14 @@ target_include_directories(test_command_executor PRIVATE
 )
 
 add_test(NAME test_command_executor COMMAND test_command_executor)
+
+add_executable(test_buffer
+    tests/test_buffer.cpp
+    ${LIGHTKV_NET_COMMON_SOURCES}
+)
+
+target_include_directories(test_buffer PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_buffer COMMAND test_buffer)

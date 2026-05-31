@@ -9,8 +9,9 @@ LightKV 是一个基于 C++17 的轻量级 KV 缓存系统。
 - Stage 0：项目骨架
 - Stage 1：线程安全内存 KVStore
 - Stage 2：文本协议解析和本地 CLI
+- Stage 3：Linux TCP Server + epoll
 
-当前仍然不实现 TCP Server、epoll、TTL 逻辑、LRU、WAL、复制或分片。
+当前仍然不实现 TTL 逻辑、LRU、WAL、复制或分片。
 
 ## Stage 1 功能
 
@@ -23,57 +24,21 @@ LightKV 是一个基于 C++17 的轻量级 KV 缓存系统。
 
 - 新增 `Command`、`Parser`、`Response`、`CommandExecutor`。
 - 支持 PING、SET、GET、DEL、EXISTS、SIZE、CLEAR、QUIT。
-- 使用简化 RESP 风格响应：simple string、error、integer、bulk string、null bulk string。
+- 使用简化 RESP 风格响应。
 - 新增本地交互式 CLI：`lightkv_cli`。
-- value 暂不支持空格，例如 `SET name yifei` 支持，`SET msg hello world` 暂不支持。
+- value 暂不支持空格。
 
-## CLI 示例
+## Stage 3 功能
 
-```sh
-make
-./build/lightkv_cli
-```
+- Linux 下使用 socket + epoll 实现 TCP Server。
+- 单线程事件循环，支持多个客户端连接。
+- 使用行协议读取命令，每行一条命令，以 `\n` 结束。
+- 复用 Stage 2 的 Parser + CommandExecutor + KVStore。
+- 返回简化 RESP 风格响应。
+- 支持 `QUIT` 返回 `+BYE` 后断开连接。
+- 支持通过 `nc` 客户端测试。
 
-示例输入：
-
-```text
-PING
-SET name yifei
-GET name
-EXISTS name
-DEL name
-SIZE
-QUIT
-```
-
-## 开发环境
-
-- Windows + Codex：用于代码编写、核心模块构建、单元测试和 Git 提交。
-- Ubuntu VMware：用于后续 Linux socket、epoll、TCP Server、nc、压测和主从复制验证。
-- GitHub：用于 Windows 和 Linux 虚拟机之间同步代码。
-
-## 后续规划
-
-- Stage 3：Linux TCP Server + epoll
-- Stage 4：TTL 过期
-- Stage 5：LRU 淘汰
-- Stage 6：WAL 持久化恢复
-- Stage 7：配置、日志、metrics
-- Stage 8：主从复制
-- Stage 9：一致性哈希和客户端路由
-- Stage 10：压测和文档整理
-
-## Windows 构建
-
-```bat
-scripts\build.bat
-scripts\run_server.bat
-scripts\test.bat
-```
-
-## Ubuntu / Linux 构建
-
-Ubuntu 下直接执行 `make` 即可完成 CMake configure 和 build。
+## Ubuntu / Linux 构建运行
 
 ```sh
 make
@@ -81,13 +46,76 @@ make run
 make test
 ```
 
-运行 CLI：
+也可以直接运行：
+
+```sh
+./build/lightkv_server --host 127.0.0.1 --port 6379
+```
+
+默认参数等价于：
+
+```sh
+./build/lightkv_server --host 127.0.0.1 --port 6379
+```
+
+绑定全部网卡：
+
+```sh
+./build/lightkv_server --host 0.0.0.0 --port 6379
+```
+
+运行本地 CLI：
 
 ```sh
 make cli
 ```
 
-也可以直接使用 CMake：
+## nc 测试
+
+启动 server 后，另开一个终端：
+
+```sh
+nc 127.0.0.1 6379
+```
+
+输入：
+
+```text
+PING
+SET name yifei
+GET name
+EXISTS name
+DEL name
+GET name
+SIZE
+QUIT
+```
+
+期望返回：
+
+```text
++PONG
++OK
+$5
+yifei
+:1
+:1
+$-1
+:0
++BYE
+```
+
+## Windows 构建
+
+Windows 下不编译 Linux-only epoll server 文件。`lightkv_server` 会提示 TCP Server 只在 Linux/Unix 可用。
+
+```bat
+scripts\build.bat
+scripts\run_server.bat
+scripts\test.bat
+```
+
+## CMake 构建
 
 ```sh
 cmake -S . -B build
@@ -103,6 +131,9 @@ bash scripts/linux_verify.sh
 
 ## 当前限制
 
-- 还没有 TCP Server。
+- 当前是单线程 epoll。
+- 暂未实现 ET 模式。
+- 暂未实现异步写队列。
+- 暂未实现 TTL、LRU、WAL。
 - value 暂不支持空格。
-- Stage 3 将实现 Linux TCP Server + epoll。
+- Stage 4 将实现 TTL 过期机制。

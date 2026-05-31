@@ -26,3 +26,12 @@
 - 新增本地交互式 CLI：`lightkv_cli`。
 - 新增 parser 和 executor 测试：`test_parser`、`test_command_executor`。
 - 修改 `lightkv_server`，增加协议层轻量自检。
+
+## Stage 3
+
+- 新增 `Buffer`，处理 TCP 半包和粘包场景。
+- 新增 `TcpConnection`，保存单个客户端连接状态。
+- 新增 `TcpServer`，在 Linux 下基于 socket + epoll 实现 TCP Server。
+- `lightkv_server` 在 Linux 下支持启动 TCP Server。
+- TCP Server 复用 Parser、CommandExecutor 和 KVStore。
+- 支持通过 `nc 127.0.0.1 6379` 进行文本协议测试。

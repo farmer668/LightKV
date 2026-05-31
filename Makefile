@@ -17,8 +17,10 @@ run:
 		./build/lightkv_server; \
 	elif [ -f build/Debug/lightkv_server ]; then \
 		./build/Debug/lightkv_server; \
+	elif [ -f build/Release/lightkv_server ]; then \
+		./build/Release/lightkv_server; \
 	else \
-		echo "lightkv_server not found. Run 'make build' first."; \
+		echo "lightkv_server not found. Run 'make' first."; \
 		exit 1; \
 	fi
 
@@ -39,7 +41,7 @@ cli:
 	elif [ -f build/Release/lightkv_cli ]; then \
 		./build/Release/lightkv_cli; \
 	else \
-		echo "lightkv_cli not found. Run 'make build' first."; \
+		echo "lightkv_cli not found. Run 'make' first."; \
 		exit 1; \
 	fi
 
