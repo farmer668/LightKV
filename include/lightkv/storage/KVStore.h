@@ -26,6 +26,9 @@ public:
 
 private:
     bool isExpired(const Entry& entry, std::chrono::steady_clock::time_point now) const;
+    bool eraseIfExpiredLocked(
+        std::unordered_map<std::string, Entry>::iterator it,
+        std::chrono::steady_clock::time_point now);
 
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::string, Entry> data_;

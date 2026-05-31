@@ -17,6 +17,16 @@ int main() {
 
     {
         lightkv::KVStore store;
+        assert(store.set("token", "abc").ok());
+        assert(store.expire("token", 10));
+        const auto value = store.get("token");
+        assert(value.has_value());
+        assert(value.value() == "abc");
+        assert(store.ttl("token") >= 0);
+    }
+
+    {
+        lightkv::KVStore store;
         assert(!store.expire("missing", 10));
     }
 
@@ -38,6 +48,26 @@ int main() {
         std::this_thread::sleep_for(std::chrono::seconds(2));
         assert(!store.get("a").has_value());
         assert(!store.exists("a"));
+    }
+
+    {
+        lightkv::KVStore store;
+        assert(store.set("token", "abc").ok());
+        assert(store.expire("token", 1));
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+        assert(!store.get("token").has_value());
+        assert(store.ttl("token") == -2);
+    }
+
+    {
+        lightkv::KVStore store;
+        assert(store.set("a", "1").ok());
+        assert(store.expire("a", 10));
+        const long long remaining = store.ttl("a");
+        assert(remaining >= 0);
+        const auto value = store.get("a");
+        assert(value.has_value());
+        assert(value.value() == "1");
     }
 
     {
@@ -72,6 +102,15 @@ int main() {
         assert(store.exists("c"));
     }
 
+    {
+        lightkv::KVStore store;
+        assert(store.set("live", "1").ok());
+        assert(store.expire("live", 10));
+        assert(store.cleanupExpired() == 0);
+        const auto value = store.get("live");
+        assert(value.has_value());
+        assert(value.value() == "1");
+    }
+
     return 0;
 }
-

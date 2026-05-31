@@ -20,8 +20,8 @@ std::optional<std::string> KVStore::get(const std::string& key) {
         return std::nullopt;
     }
 
-    if (isExpired(it->second, std::chrono::steady_clock::now())) {
-        data_.erase(it);
+    const auto now = std::chrono::steady_clock::now();
+    if (eraseIfExpiredLocked(it, now)) {
         return std::nullopt;
     }
 
@@ -40,8 +40,8 @@ bool KVStore::exists(const std::string& key) {
         return false;
     }
 
-    if (isExpired(it->second, std::chrono::steady_clock::now())) {
-        data_.erase(it);
+    const auto now = std::chrono::steady_clock::now();
+    if (eraseIfExpiredLocked(it, now)) {
         return false;
     }
 
@@ -74,8 +74,7 @@ bool KVStore::expire(const std::string& key, int seconds) {
         return false;
     }
 
-    if (isExpired(it->second, now)) {
-        data_.erase(it);
+    if (eraseIfExpiredLocked(it, now)) {
         return false;
     }
 
@@ -97,8 +96,7 @@ long long KVStore::ttl(const std::string& key) {
         return -2;
     }
 
-    if (isExpired(it->second, now)) {
-        data_.erase(it);
+    if (eraseIfExpiredLocked(it, now)) {
         return -2;
     }
 
@@ -137,6 +135,17 @@ size_t KVStore::cleanupExpired(size_t max_scan) {
 
 bool KVStore::isExpired(const Entry& entry, std::chrono::steady_clock::time_point now) const {
     return entry.has_ttl && now >= entry.expire_at;
+}
+
+bool KVStore::eraseIfExpiredLocked(
+    std::unordered_map<std::string, Entry>::iterator it,
+    std::chrono::steady_clock::time_point now) {
+    if (!isExpired(it->second, now)) {
+        return false;
+    }
+
+    data_.erase(it);
+    return true;
 }
 
 }  // namespace lightkv
