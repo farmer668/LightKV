@@ -51,6 +51,17 @@ int main() {
     assertType(command, lightkv::CommandType::Info);
     assert(command.args.empty());
 
+    command = parser.parseLine("SYNC 7");
+    assertType(command, lightkv::CommandType::Sync);
+    assert(command.args.size() == 1);
+    assert(command.args[0] == "7");
+
+    command = parser.parseLine("REPLCONF listening-port 6380");
+    assertType(command, lightkv::CommandType::ReplConf);
+    assert(command.args.size() == 2);
+    assert(command.args[0] == "listening-port");
+    assert(command.args[1] == "6380");
+
     command = parser.parseLine("SIZE");
     assertType(command, lightkv::CommandType::Size);
     assert(command.args.empty());
@@ -81,6 +92,10 @@ int main() {
     assert(!command.error.empty());
 
     command = parser.parseLine("TTL");
+    assert(command.type == lightkv::CommandType::Invalid);
+    assert(!command.error.empty());
+
+    command = parser.parseLine("SYNC");
     assert(command.type == lightkv::CommandType::Invalid);
     assert(!command.error.empty());
 

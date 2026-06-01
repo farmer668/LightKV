@@ -1,8 +1,11 @@
 #include "lightkv/protocol/CommandExecutor.h"
 
 #include "lightkv/protocol/Response.h"
+#include "lightkv/replication/MasterReplication.h"
+#include "lightkv/replication/ReplicationRole.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -63,11 +66,34 @@ void recordCommand(Metrics* metrics, CommandType type) {
         case CommandType::Info:
             metrics->incInfoCommands();
             break;
+        case CommandType::Sync:
+        case CommandType::ReplConf:
         case CommandType::Size:
         case CommandType::Clear:
         case CommandType::Quit:
         case CommandType::Invalid:
             break;
+    }
+}
+
+bool isWriteCommand(CommandType type) {
+    return type == CommandType::Set ||
+           type == CommandType::Del ||
+           type == CommandType::Expire ||
+           type == CommandType::Clear;
+}
+
+bool parseOffset(const std::string& text, uint64_t& offset) {
+    try {
+        std::size_t parsed = 0;
+        const auto value = std::stoull(text, &parsed, 10);
+        if (parsed != text.size()) {
+            return false;
+        }
+        offset = static_cast<uint64_t>(value);
+        return true;
+    } catch (...) {
+        return false;
     }
 }
 
@@ -78,15 +104,23 @@ CommandExecutor::CommandExecutor(
     Wal* wal,
     bool wal_enabled,
     std::string wal_path,
-    Metrics* metrics)
+    Metrics* metrics,
+    ReplicationState* replication_state)
     : store_(store),
       wal_(wal),
       wal_enabled_(wal_enabled),
       wal_path_(std::move(wal_path)),
-      metrics_(metrics) {}
+      metrics_(metrics),
+      replication_state_(replication_state) {}
 
 std::string CommandExecutor::execute(const Command& command) {
     recordCommand(metrics_, command.type);
+
+    if (replication_state_ != nullptr &&
+        replication_state_->role() == ReplicationRole::Slave &&
+        isWriteCommand(command.type)) {
+        return Response::error("slave is read-only");
+    }
 
     switch (command.type) {
         case CommandType::Ping:
@@ -169,11 +203,36 @@ std::string CommandExecutor::execute(const Command& command) {
                 info << "wal_enabled:" << (wal_enabled_ ? "true" : "false") << '\n';
                 info << "wal_path:" << wal_path_ << '\n';
                 info << "wal_records:" << ((wal_enabled_ && wal_ != nullptr) ? wal_->recordsWritten() : 0);
+                info << '\n' << "wal_last_offset:" << ((wal_enabled_ && wal_ != nullptr) ? wal_->lastOffset() : 0);
+                if (replication_state_ != nullptr) {
+                    const auto master_offset = (wal_ != nullptr) ? wal_->lastOffset() : 0;
+                    info << '\n' << replication_state_->info(master_offset);
+                }
                 if (metrics_ != nullptr) {
                     info << '\n' << metrics_->toString();
                 }
                 return Response::bulkString(info.str());
             }
+        case CommandType::Sync: {
+            if (!hasArgCount(command, 1)) {
+                return Response::error("wrong number of arguments");
+            }
+            if (replication_state_ != nullptr &&
+                replication_state_->role() == ReplicationRole::Slave) {
+                return Response::error("only master can sync");
+            }
+            if (wal_ == nullptr) {
+                return Response::bulkString("");
+            }
+            uint64_t offset = 0;
+            if (!parseOffset(command.args[0], offset)) {
+                return Response::error("invalid sync offset");
+            }
+            MasterReplication replication(*wal_);
+            return Response::bulkString(replication.syncPayloadAfter(offset));
+        }
+        case CommandType::ReplConf:
+            return Response::simpleString("OK");
         case CommandType::Size:
             if (!hasArgCount(command, 0)) {
                 return Response::error("wrong number of arguments");

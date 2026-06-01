@@ -4,6 +4,8 @@
 #include "lightkv/persistence/Wal.h"
 #include "lightkv/protocol/CommandExecutor.h"
 #include "lightkv/protocol/Parser.h"
+#include "lightkv/replication/ReplicationRole.h"
+#include "lightkv/replication/ReplicationState.h"
 #include "lightkv/storage/KVStore.h"
 
 #include <cstddef>
@@ -17,6 +19,9 @@ struct CliOptions {
     bool wal_enabled = true;
     std::string wal_path = "data/lightkv_cli.wal";
     std::string log_level = "INFO";
+    lightkv::ReplicationRole role = lightkv::ReplicationRole::Master;
+    std::string master_host = "127.0.0.1";
+    int master_port = 6379;
 };
 
 struct CliOverrides {
@@ -24,12 +29,16 @@ struct CliOverrides {
     bool wal_enabled = false;
     bool wal_path = false;
     bool log_level = false;
+    bool role = false;
+    bool master_host = false;
+    bool master_port = false;
 };
 
 void printUsage(const char* program) {
     std::cerr << "Usage: " << program
               << " [--config PATH] [--max-keys COUNT]"
-              << " [--wal-path PATH] [--disable-wal] [--log-level LEVEL]\n";
+              << " [--wal-path PATH] [--disable-wal] [--log-level LEVEL]"
+              << " [--role master|slave] [--master-host HOST] [--master-port PORT]\n";
 }
 
 bool parseSizeArg(const std::string& text, size_t& value) {
@@ -41,6 +50,16 @@ bool parseSizeArg(const std::string& text, size_t& value) {
         }
         value = static_cast<size_t>(parsed_value);
         return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool parsePortArg(const std::string& text, int& port) {
+    try {
+        std::size_t parsed = 0;
+        port = std::stoi(text, &parsed, 10);
+        return parsed == text.size() && port > 0 && port <= 65535;
     } catch (...) {
         return false;
     }
@@ -96,6 +115,32 @@ bool parseCommandLine(
             continue;
         }
 
+        if (arg == "--role") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            cli.role = lightkv::parseReplicationRole(argv[++i]);
+            overrides.role = true;
+            continue;
+        }
+
+        if (arg == "--master-host") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            cli.master_host = argv[++i];
+            overrides.master_host = true;
+            continue;
+        }
+
+        if (arg == "--master-port") {
+            if (i + 1 >= argc || !parsePortArg(argv[++i], cli.master_port)) {
+                return false;
+            }
+            overrides.master_port = true;
+            continue;
+        }
+
         return false;
     }
 
@@ -114,6 +159,9 @@ CliOptions loadConfigOptions(const std::string& config_path, bool has_config) {
     options.wal_enabled = config.getBool("wal_enabled", options.wal_enabled);
     options.wal_path = config.getString("wal_path", options.wal_path);
     options.log_level = config.getString("log_level", options.log_level);
+    options.role = lightkv::parseReplicationRole(config.getString("role", "master"));
+    options.master_host = config.getString("master_host", options.master_host);
+    options.master_port = config.getInt("master_port", options.master_port);
     return options;
 }
 
@@ -129,6 +177,15 @@ void applyOverrides(CliOptions& options, const CliOptions& cli, const CliOverrid
     }
     if (overrides.log_level) {
         options.log_level = cli.log_level;
+    }
+    if (overrides.role) {
+        options.role = cli.role;
+    }
+    if (overrides.master_host) {
+        options.master_host = cli.master_host;
+    }
+    if (overrides.master_port) {
+        options.master_port = cli.master_port;
     }
 }
 
@@ -148,7 +205,7 @@ int main(int argc, char* argv[]) {
     applyOverrides(options, cli_options, overrides);
     lightkv::Logger::instance().setLevel(lightkv::parseLogLevel(options.log_level));
 
-    std::cout << "LightKV CLI - Stage 7" << '\n';
+    std::cout << "LightKV CLI - Stage 8" << '\n';
     std::cout << "Type QUIT to exit." << '\n';
 
     lightkv::KVStore store(options.max_keys);
@@ -163,12 +220,16 @@ int main(int argc, char* argv[]) {
 
     lightkv::Parser parser;
     lightkv::Metrics metrics;
+    lightkv::ReplicationState replication_state;
+    replication_state.setRole(options.role);
+    replication_state.setMaster(options.master_host, options.master_port);
     lightkv::CommandExecutor executor(
         store,
         options.wal_enabled ? &wal : nullptr,
         options.wal_enabled,
         options.wal_path,
-        &metrics);
+        &metrics,
+        &replication_state);
 
     std::string line;
     while (true) {

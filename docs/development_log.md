@@ -1,48 +1,59 @@
-# 开发日志
+# Development Log
 
 ## Stage 0
 
-- 完成 LightKV 项目骨架。
+- Created the LightKV project scaffold.
 
 ## Stage 1
 
-- 新增 `Status`、`Entry` 和线程安全 `KVStore`。
-- 支持 set、get、del、exists、size、clear。
+- Added `Status`, `Entry`, and thread-safe `KVStore`.
+- Supported set/get/del/exists/size/clear.
 
 ## Stage 2
 
-- 新增 `Command`、`Parser`、`Response`、`CommandExecutor`。
-- 新增本地交互式 CLI：`lightkv_cli`。
+- Added `Command`, `Parser`, `Response`, and `CommandExecutor`.
+- Added local interactive `lightkv_cli`.
 
 ## Stage 3
 
-- 新增 `Buffer`、`TcpConnection` 和 Linux socket + epoll `TcpServer`。
+- Added `Buffer`, `TcpConnection`, and Linux socket + epoll `TcpServer`.
 
 ## Stage 4
 
-- KVStore 增加 TTL 支持。
-- 新增 `EXPIRE` / `TTL` 命令。
-- 实现惰性删除和 `cleanupExpired()`。
+- Added TTL support to `KVStore`.
+- Added `EXPIRE` and `TTL`.
+- Implemented lazy expiration and `cleanupExpired()`.
 
 ## Stage 5
 
-- 新增 `LRUCache`。
-- KVStore 增加 `max_keys` 容量限制和 LRU 淘汰。
-- 新增 `INFO` 命令。
+- Added `LRUCache`.
+- Added `max_keys` and O(1) LRU eviction to `KVStore`.
+- Added `INFO`.
 
 ## Stage 6
 
-- 新增 `Wal`。
-- SET、成功 DEL、成功 EXPIRE 写入 WAL。
-- lightkv_server 和 lightkv_cli 启动时 replay WAL。
+- Added `Wal`.
+- Wrote `SET`, successful `DEL`, and successful `EXPIRE` to WAL.
+- Replayed WAL during `lightkv_server` and `lightkv_cli` startup.
 
 ## Stage 7
 
-- 新增 `Config`，支持 key=value 配置文件、注释、空行、trim 和 string/int/size_t/bool 类型读取。
-- 新增 `Logger`，支持 DEBUG、INFO、WARN、ERROR 日志级别。
-- 新增 `Metrics`，统计命令数、hits/misses 和连接数。
-- lightkv_server 默认尝试读取 `config/lightkv.example.conf`，并支持 `--config`。
-- lightkv_cli 支持 `--config`。
-- 命令行参数优先级高于配置文件。
-- INFO 输出增加 Metrics 字段。
-- 新增 `test_config`、`test_logger`、`test_metrics`。
+- Added `Config` for key=value config files.
+- Added `Logger` with DEBUG/INFO/WARN/ERROR levels.
+- Added `Metrics` for command counts, hits/misses, and connection counts.
+- Added config support to server and CLI.
+- Added metrics fields to `INFO`.
+- Added `test_config`, `test_logger`, and `test_metrics`.
+
+## Stage 8
+
+- Changed WAL format to `offset|command`.
+- Added compatible loading for old WAL records without offsets.
+- Added `WalRecord`, `loadRecordsAfter(offset)`, and `lastOffset()`.
+- Added `WalReplayer` so replay does not go through `CommandExecutor` and does not append WAL again.
+- Added replication state: role, master address, replication offset, sync status, and sync counters.
+- Added internal `REPLCONF` handshake and `SYNC offset` command for master-side incremental WAL fetch.
+- Added slave read-only enforcement for `SET`, `DEL`, `EXPIRE`, and `CLEAR`.
+- Added Linux/Unix slave background sync loop.
+- Added replication fields to `INFO`.
+- Added tests: `test_wal_offset`, `test_wal_replayer`, and `test_replication_state`.

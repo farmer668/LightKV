@@ -1,12 +1,27 @@
 #include "lightkv/protocol/CommandExecutor.h"
 #include "lightkv/protocol/Parser.h"
 #include "lightkv/common/Metrics.h"
+#include "lightkv/persistence/Wal.h"
+#include "lightkv/replication/ReplicationState.h"
 #include "lightkv/storage/KVStore.h"
 
 #include <cassert>
 #include <chrono>
+#include <filesystem>
 #include <string>
+#include <system_error>
 #include <thread>
+
+namespace {
+
+const std::string kWalPath = "data/test_command_executor_stage8.wal";
+
+void removeWal() {
+    std::error_code ec;
+    std::filesystem::remove(kWalPath, ec);
+}
+
+}  // namespace
 
 int main() {
     lightkv::KVStore store;
@@ -77,6 +92,39 @@ int main() {
 
     const auto invalid_response = executor.execute(parser.parseLine("WHAT"));
     assert(invalid_response.rfind("-ERR", 0) == 0);
+    assert(executor.execute(parser.parseLine("REPLCONF listening-port 6380")) == "+OK\r\n");
+
+    {
+        lightkv::KVStore repl_store;
+        lightkv::ReplicationState slave_state;
+        slave_state.setRole(lightkv::ReplicationRole::Slave);
+        lightkv::CommandExecutor slave_executor(repl_store, nullptr, false, "", nullptr, &slave_state);
+
+        assert(slave_executor.execute(parser.parseLine("SET blocked 1")) == "-ERR slave is read-only\r\n");
+        repl_store.set("readable", "yes");
+        assert(slave_executor.execute(parser.parseLine("GET readable")) == "$3\r\nyes\r\n");
+        assert(slave_executor.execute(parser.parseLine("SYNC 0")) == "-ERR only master can sync\r\n");
+    }
+
+    {
+        removeWal();
+        lightkv::KVStore repl_store;
+        lightkv::Wal wal(kWalPath);
+        assert(wal.open());
+        lightkv::ReplicationState master_state;
+        master_state.setRole(lightkv::ReplicationRole::Master);
+        lightkv::CommandExecutor master_executor(repl_store, &wal, true, kWalPath, nullptr, &master_state);
+
+        assert(master_executor.execute(parser.parseLine("SET rsync 1")) == "+OK\r\n");
+        const auto sync_response = master_executor.execute(parser.parseLine("SYNC 0"));
+        assert(sync_response.find("1|SET rsync 1") != std::string::npos);
+
+        const auto repl_info = master_executor.execute(parser.parseLine("INFO"));
+        assert(repl_info.find("role:master") != std::string::npos);
+        assert(repl_info.find("replication_offset:1") != std::string::npos);
+        wal.close();
+        removeWal();
+    }
 
     assert(executor.execute(parser.parseLine("QUIT")) == "+BYE\r\n");
 

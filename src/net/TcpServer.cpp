@@ -37,16 +37,32 @@ TcpServer::TcpServer(
     int port,
     size_t max_keys,
     bool wal_enabled,
-    std::string wal_path)
+    std::string wal_path,
+    ReplicationRole role,
+    std::string master_host,
+    int master_port,
+    int replication_interval_ms)
     : host_(std::move(host)),
       port_(port),
       wal_enabled_(wal_enabled),
       wal_path_(std::move(wal_path)),
+      role_(role),
+      master_host_(std::move(master_host)),
+      master_port_(master_port),
+      replication_interval_ms_(replication_interval_ms),
       store_(max_keys),
       wal_(wal_path_),
-      executor_(store_, wal_enabled_ ? &wal_ : nullptr, wal_enabled_, wal_path_, &metrics_) {}
+      executor_(store_, wal_enabled_ ? &wal_ : nullptr, wal_enabled_, wal_path_, &metrics_, &replication_state_),
+      slave_replication_(
+          replication_state_,
+          store_,
+          std::chrono::milliseconds(replication_interval_ms_)) {
+    replication_state_.setRole(role_);
+    replication_state_.setMaster(master_host_, master_port_);
+}
 
 TcpServer::~TcpServer() {
+    slave_replication_.stop();
     stopExpireWorker();
     wal_.close();
 
@@ -97,6 +113,11 @@ bool TcpServer::start() {
 
     Logger::instance().info("TCP server started on " + host_ + ":" + std::to_string(port_));
     startExpireWorker();
+    if (role_ == ReplicationRole::Slave) {
+        Logger::instance().info(
+            "starting slave replication from " + master_host_ + ":" + std::to_string(master_port_));
+        slave_replication_.start();
+    }
     return true;
 }
 

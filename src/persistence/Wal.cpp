@@ -1,5 +1,9 @@
 #include "lightkv/persistence/Wal.h"
 
+#include "lightkv/persistence/WalReplayer.h"
+
+#include <algorithm>
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <sstream>
@@ -21,6 +25,11 @@ bool Wal::open() {
         }
     }
 
+    last_offset_ = 0;
+    for (const auto& record : loadRecords()) {
+        last_offset_ = std::max(last_offset_, record.offset);
+    }
+
     stream_.open(path_, std::ios::out | std::ios::app);
     return stream_.is_open();
 }
@@ -31,36 +40,59 @@ void Wal::close() {
     }
 }
 
-bool Wal::appendSet(const std::string& key, const std::string& value) {
+uint64_t Wal::appendSet(const std::string& key, const std::string& value) {
     return appendRecord("SET " + key + " " + value);
 }
 
-bool Wal::appendDel(const std::string& key) {
+uint64_t Wal::appendDel(const std::string& key) {
     return appendRecord("DEL " + key);
 }
 
-bool Wal::appendExpire(const std::string& key, int seconds) {
+uint64_t Wal::appendExpire(const std::string& key, int seconds) {
     return appendRecord("EXPIRE " + key + " " + std::to_string(seconds));
 }
 
-std::vector<std::string> Wal::loadRecords() const {
+std::vector<WalRecord> Wal::loadRecords() const {
     std::ifstream input(path_);
-    std::vector<std::string> records;
+    std::vector<WalRecord> records;
     if (!input.is_open()) {
         return records;
     }
 
     std::string line;
+    uint64_t fallback_offset = 1;
     while (std::getline(input, line)) {
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
-        if (!line.empty()) {
-            records.push_back(line);
+        if (line.empty()) {
+            continue;
+        }
+
+        WalRecord record;
+        if (parseWalRecordLine(line, fallback_offset, record)) {
+            records.push_back(record);
+            fallback_offset = std::max(fallback_offset, record.offset + 1);
+        } else {
+            std::cerr << "skip invalid WAL record: " << line << '\n';
         }
     }
 
     return records;
+}
+
+std::vector<WalRecord> Wal::loadRecordsAfter(uint64_t offset) const {
+    std::vector<WalRecord> result;
+    for (const auto& record : loadRecords()) {
+        if (record.offset > offset) {
+            result.push_back(record);
+        }
+    }
+    return result;
+}
+
+uint64_t Wal::lastOffset() const {
+    return last_offset_;
 }
 
 const std::string& Wal::path() const {
@@ -71,81 +103,75 @@ size_t Wal::recordsWritten() const {
     return records_written_;
 }
 
-bool Wal::appendRecord(const std::string& record) {
+uint64_t Wal::appendRecord(const std::string& record) {
     if (!stream_.is_open()) {
-        return false;
+        return 0;
     }
 
-    stream_ << record << '\n';
+    const auto next_offset = last_offset_ + 1;
+    stream_ << next_offset << '|' << record << '\n';
     stream_.flush();
     if (!stream_) {
+        return 0;
+    }
+
+    last_offset_ = next_offset;
+    ++records_written_;
+    return next_offset;
+}
+
+std::string formatWalRecord(const WalRecord& record) {
+    return std::to_string(record.offset) + "|" + record.command;
+}
+
+bool parseWalRecordLine(const std::string& line, uint64_t fallback_offset, WalRecord& record) {
+    const auto pipe = line.find('|');
+    if (pipe == std::string::npos) {
+        record.offset = fallback_offset;
+        record.command = line;
+        return !record.command.empty();
+    }
+
+    if (pipe == 0) {
         return false;
     }
 
-    ++records_written_;
-    return true;
+    try {
+        std::size_t parsed = 0;
+        const auto offset = std::stoull(line.substr(0, pipe), &parsed, 10);
+        if (parsed != pipe || offset == 0) {
+            return false;
+        }
+        record.offset = static_cast<uint64_t>(offset);
+        record.command = line.substr(pipe + 1);
+        return !record.command.empty();
+    } catch (...) {
+        return false;
+    }
+}
+
+size_t replayWalRecords(const std::vector<WalRecord>& records, KVStore& store) {
+    WalReplayer replayer(store);
+    size_t applied = 0;
+    for (const auto& record : records) {
+        if (replayer.replayCommand(record.command)) {
+            ++applied;
+        }
+    }
+    return applied;
 }
 
 size_t replayWalRecords(const std::vector<std::string>& records, KVStore& store) {
-    size_t applied = 0;
-
+    std::vector<WalRecord> wal_records;
+    uint64_t offset = 1;
     for (const auto& record : records) {
-        std::istringstream stream(record);
-        std::string command;
-        stream >> command;
-
-        if (command == "SET") {
-            std::string key;
-            std::string value;
-            std::string extra;
-            if ((stream >> key >> value) && !(stream >> extra)) {
-                store.set(key, value);
-                ++applied;
-            } else {
-                std::cerr << "skip invalid WAL record: " << record << '\n';
-            }
-            continue;
+        WalRecord wal_record;
+        if (parseWalRecordLine(record, offset, wal_record)) {
+            wal_records.push_back(wal_record);
+            offset = std::max(offset, wal_record.offset + 1);
         }
-
-        if (command == "DEL") {
-            std::string key;
-            std::string extra;
-            if ((stream >> key) && !(stream >> extra)) {
-                store.del(key);
-                ++applied;
-            } else {
-                std::cerr << "skip invalid WAL record: " << record << '\n';
-            }
-            continue;
-        }
-
-        if (command == "EXPIRE") {
-            std::string key;
-            std::string seconds_text;
-            std::string extra;
-            if ((stream >> key >> seconds_text) && !(stream >> extra)) {
-                try {
-                    std::size_t parsed = 0;
-                    const int seconds = std::stoi(seconds_text, &parsed, 10);
-                    if (parsed == seconds_text.size()) {
-                        store.expire(key, seconds);
-                        ++applied;
-                    } else {
-                        std::cerr << "skip invalid WAL record: " << record << '\n';
-                    }
-                } catch (...) {
-                    std::cerr << "skip invalid WAL record: " << record << '\n';
-                }
-            } else {
-                std::cerr << "skip invalid WAL record: " << record << '\n';
-            }
-            continue;
-        }
-
-        std::cerr << "skip invalid WAL record: " << record << '\n';
     }
-
-    return applied;
+    return replayWalRecords(wal_records, store);
 }
 
 size_t replayWalFile(const Wal& wal, KVStore& store) {

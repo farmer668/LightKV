@@ -1,50 +1,98 @@
-# 架构设计
+# Architecture
 
-LightKV 规划为一个模块化的 C++17 KV 缓存系统。
+LightKV is organized as a small modular C++17 KV cache.
 
-## 模块规划
+## Modules
 
-- `common`：Status、Config、Logger、Metrics
-- `storage`：KVStore、Entry、TTL、LRUCache
-- `protocol`：Command、Parser、Response、CommandExecutor
-- `net`：TcpServer、TcpConnection、Buffer
-- `persistence`：Wal、replay
-- `replication`：master/slave、offset sync
-- `cluster`：consistent hash
-- `client`：LightKVClient、ClusterClient
+- `common`: `Status`, `Config`, `Logger`, `Metrics`
+- `storage`: `KVStore`, `Entry`, TTL, `LRUCache`
+- `protocol`: `Command`, `Parser`, `Response`, `CommandExecutor`
+- `net`: `TcpServer`, `TcpConnection`, `Buffer`
+- `persistence`: `Wal`, `WalReplayer`
+- `replication`: master/slave state and WAL-offset sync
+
+## Storage
+
+`KVStore` stores `Entry` objects in `std::unordered_map<std::string, Entry>`.
+
+- `Entry` stores value and optional TTL metadata.
+- Expiration uses lazy deletion plus a periodic cleanup worker in the server.
+- `LRUCache` uses `std::list` plus `std::unordered_map` for O(1) touch/remove/evict.
+- `GET` and `SET` refresh LRU order.
+- `DEL`, `CLEAR`, eviction, and expiration keep LRU state in sync.
+
+## Persistence
+
+Stage 8 WAL lines use:
+
+```text
+offset|command
+```
+
+Example:
+
+```text
+1|SET a 1
+2|EXPIRE a 10
+3|DEL a
+```
+
+`Wal::open()` scans existing records to initialize `lastOffset()`. New appends use `lastOffset() + 1`.
+
+Old Stage 6 lines without offsets are accepted by `loadRecords()` and assigned offsets according to load order.
+
+`WalReplayer` applies `SET`, `DEL`, and `EXPIRE` directly to `KVStore`. It intentionally does not use `CommandExecutor`, so replay and slave sync do not append WAL again.
+
+## Replication
+
+Stage 8 implements simplified master/slave replication. It is not a consensus protocol.
+
+Master:
+
+- Accepts normal client writes.
+- Appends successful writes to WAL.
+- Handles `SYNC offset`.
+- Returns all WAL records whose offset is greater than the requested offset.
+
+Slave:
+
+- Starts a background sync loop.
+- Periodically connects to master.
+- Sends `SYNC current_offset`.
+- Parses returned WAL records.
+- Replays them with `WalReplayer`.
+- Updates replication offset and sync status.
+- Rejects normal write commands with `-ERR slave is read-only`.
+
+The sync interval defaults to 1000 ms and can be configured by `replication_interval_ms` or `--replication-interval-ms`.
 
 ## Config
 
-- 配置文件格式为简单 `key=value`。
-- 忽略空行和 `#` 开头注释。
-- key 和 value 两侧会 trim。
-- 支持 string、int、size_t、bool 类型读取。
-- bool 支持 true/false/1/0/yes/no。
-- 配置文件不存在时使用默认值。
-- 参数优先级为：命令行参数 > 配置文件 > 默认值。
+Config files use simple `key=value` lines.
+
+Priority:
+
+```text
+command line arguments > config file > defaults
+```
+
+Replication config keys:
+
+```text
+role=master
+master_host=127.0.0.1
+master_port=6379
+replication_interval_ms=1000
+```
 
 ## Logger
 
-- Logger 是简单单例日志器。
-- 支持 DEBUG、INFO、WARN、ERROR。
-- 输出到 stdout，格式为 `[time] [LEVEL] message`。
-- TcpServer 启动、WAL replay、连接建立/断开和错误路径使用 Logger。
+`Logger` is a small thread-safe singleton. It writes `[time] [LEVEL] message` to stdout.
 
 ## Metrics
 
-- Metrics 使用 `std::atomic<size_t>` 保存计数。
-- CommandExecutor 更新命令计数。
-- GET 命中时 hits +1，未命中时 misses +1。
-- TcpServer accept 新连接时增加 total/current connections。
-- TcpServer close connection 时减少 current connections。
-- INFO 输出 Metrics 快照。
+`Metrics` uses atomics for command counts, hits/misses, and connections. `INFO` returns a snapshot.
 
-## persistence
+## Future Work
 
-- WAL 文本记录格式：`SET key value`、`DEL key`、`EXPIRE key seconds`。
-- replay 期间不经过 CommandExecutor，不会重复追加 WAL。
-- `EXPIRE` replay 当前使用相对时间。
-
-## 后续路线
-
-Stage 8 将实现主从复制。
+Stage 9 will add consistent hashing and client routing. Raft, automatic election, sentinel, and binary replication are intentionally out of scope.

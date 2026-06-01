@@ -13,6 +13,8 @@ enum class CommandType {
     Exists,
     Expire,
     Info,
+    ReplConf,
+    Sync,
     Size,
     Ttl,
     Clear,

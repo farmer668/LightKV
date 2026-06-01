@@ -32,6 +32,13 @@ set(LIGHTKV_PROTOCOL_SOURCES
     src/protocol/Response.cpp
     src/protocol/CommandExecutor.cpp
     src/persistence/Wal.cpp
+    src/persistence/WalReplayer.cpp
+)
+
+set(LIGHTKV_REPLICATION_SOURCES
+    src/replication/ReplicationState.cpp
+    src/replication/MasterReplication.cpp
+    src/replication/SlaveReplication.cpp
 )
 
 set(LIGHTKV_NET_COMMON_SOURCES
@@ -42,6 +49,7 @@ set(LIGHTKV_SERVER_SOURCES
     src/main.cpp
     ${LIGHTKV_CORE_SOURCES}
     ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 if(UNIX AND NOT APPLE)
@@ -60,20 +68,24 @@ target_include_directories(lightkv_server PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
+target_link_libraries(lightkv_server PRIVATE Threads::Threads)
+
 if(UNIX AND NOT APPLE)
     target_compile_definitions(lightkv_server PRIVATE LIGHTKV_ENABLE_TCP_SERVER)
-    target_link_libraries(lightkv_server PRIVATE Threads::Threads)
 endif()
 
 add_executable(lightkv_cli
     tools/lightkv_cli.cpp
     ${LIGHTKV_CORE_SOURCES}
     ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 target_include_directories(lightkv_cli PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+target_link_libraries(lightkv_cli PRIVATE Threads::Threads)
 
 enable_testing()
 
@@ -92,11 +104,14 @@ add_executable(test_parser
     tests/test_parser.cpp
     ${LIGHTKV_PROTOCOL_SOURCES}
     ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 target_include_directories(test_parser PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+target_link_libraries(test_parser PRIVATE Threads::Threads)
 
 add_test(NAME test_parser COMMAND test_parser)
 
@@ -104,6 +119,7 @@ add_executable(test_command_executor
     tests/test_command_executor.cpp
     ${LIGHTKV_PROTOCOL_SOURCES}
     ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 target_include_directories(test_command_executor PRIVATE
@@ -142,11 +158,14 @@ add_executable(test_ttl_regression
     tests/test_ttl_regression.cpp
     ${LIGHTKV_PROTOCOL_SOURCES}
     ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 target_include_directories(test_ttl_regression PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+target_link_libraries(test_ttl_regression PRIVATE Threads::Threads)
 
 add_test(NAME test_ttl_regression COMMAND test_ttl_regression)
 
@@ -167,13 +186,59 @@ add_executable(test_wal
     tests/test_wal.cpp
     ${LIGHTKV_PROTOCOL_SOURCES}
     ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
 )
 
 target_include_directories(test_wal PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
+target_link_libraries(test_wal PRIVATE Threads::Threads)
+
 add_test(NAME test_wal COMMAND test_wal)
+
+add_executable(test_wal_offset
+    tests/test_wal_offset.cpp
+    ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
+)
+
+target_include_directories(test_wal_offset PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_wal_offset PRIVATE Threads::Threads)
+
+add_test(NAME test_wal_offset COMMAND test_wal_offset)
+
+add_executable(test_wal_replayer
+    tests/test_wal_replayer.cpp
+    ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_CORE_SOURCES}
+    ${LIGHTKV_REPLICATION_SOURCES}
+)
+
+target_include_directories(test_wal_replayer PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_wal_replayer PRIVATE Threads::Threads)
+
+add_test(NAME test_wal_replayer COMMAND test_wal_replayer)
+
+add_executable(test_replication_state
+    tests/test_replication_state.cpp
+    src/replication/ReplicationState.cpp
+)
+
+target_include_directories(test_replication_state PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_replication_state PRIVATE Threads::Threads)
+
+add_test(NAME test_replication_state COMMAND test_replication_state)
 
 add_executable(test_config
     tests/test_config.cpp

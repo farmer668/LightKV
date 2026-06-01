@@ -43,15 +43,18 @@ int main() {
 
         assert(std::filesystem::exists(kWalPath));
         const auto content = readAll(kWalPath);
-        assert(content.find("SET a 1\n") != std::string::npos);
-        assert(content.find("EXPIRE a 10\n") != std::string::npos);
-        assert(content.find("DEL a\n") != std::string::npos);
+        assert(content.find("1|SET a 1\n") != std::string::npos);
+        assert(content.find("2|EXPIRE a 10\n") != std::string::npos);
+        assert(content.find("3|DEL a\n") != std::string::npos);
 
         const auto records = wal.loadRecords();
         assert(records.size() == 3);
-        assert(records[0] == "SET a 1");
-        assert(records[1] == "EXPIRE a 10");
-        assert(records[2] == "DEL a");
+        assert(records[0].offset == 1);
+        assert(records[0].command == "SET a 1");
+        assert(records[1].offset == 2);
+        assert(records[1].command == "EXPIRE a 10");
+        assert(records[2].offset == 3);
+        assert(records[2].command == "DEL a");
     }
 
     {
@@ -107,7 +110,8 @@ int main() {
         assert(replayer.recordsWritten() == 0);
         const auto records = replayer.loadRecords();
         assert(records.size() == 1);
-        assert(records[0] == "SET x 1");
+        assert(records[0].offset == 1);
+        assert(records[0].command == "SET x 1");
     }
 
     {
@@ -125,9 +129,9 @@ int main() {
 
         const auto records = wal.loadRecords();
         assert(records.size() == 3);
-        assert(records[0] == "SET walkey walvalue");
-        assert(records[1] == "EXPIRE walkey 10");
-        assert(records[2] == "DEL walkey");
+        assert(records[0].command == "SET walkey walvalue");
+        assert(records[1].command == "EXPIRE walkey 10");
+        assert(records[2].command == "DEL walkey");
     }
 
     removeTestWal();

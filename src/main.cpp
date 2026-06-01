@@ -1,5 +1,6 @@
 #include "lightkv/common/Config.h"
 #include "lightkv/common/Logger.h"
+#include "lightkv/replication/ReplicationRole.h"
 
 #include <cstddef>
 #include <iostream>
@@ -18,6 +19,10 @@ struct ServerOptions {
     bool wal_enabled = true;
     std::string wal_path = "data/lightkv.wal";
     std::string log_level = "INFO";
+    lightkv::ReplicationRole role = lightkv::ReplicationRole::Master;
+    std::string master_host = "127.0.0.1";
+    int master_port = 6379;
+    int replication_interval_ms = 1000;
 };
 
 struct ServerOverrides {
@@ -27,12 +32,18 @@ struct ServerOverrides {
     bool wal_enabled = false;
     bool wal_path = false;
     bool log_level = false;
+    bool role = false;
+    bool master_host = false;
+    bool master_port = false;
+    bool replication_interval_ms = false;
 };
 
 void printUsage(const char* program) {
     std::cerr << "Usage: " << program
               << " [--config PATH] [--host HOST] [--port PORT] [--max-keys COUNT]"
-              << " [--wal-path PATH] [--disable-wal] [--log-level LEVEL]\n";
+              << " [--wal-path PATH] [--disable-wal] [--log-level LEVEL]"
+              << " [--role master|slave] [--master-host HOST] [--master-port PORT]"
+              << " [--replication-interval-ms MS]\n";
 }
 
 bool parseSizeArg(const std::string& text, size_t& value) {
@@ -124,6 +135,49 @@ bool parseCommandLine(
             continue;
         }
 
+        if (arg == "--role") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            cli.role = lightkv::parseReplicationRole(argv[++i]);
+            overrides.role = true;
+            continue;
+        }
+
+        if (arg == "--master-host") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            cli.master_host = argv[++i];
+            overrides.master_host = true;
+            continue;
+        }
+
+        if (arg == "--master-port") {
+            if (i + 1 >= argc || !parsePortArg(argv[++i], cli.master_port)) {
+                return false;
+            }
+            overrides.master_port = true;
+            continue;
+        }
+
+        if (arg == "--replication-interval-ms") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            try {
+                std::size_t parsed = 0;
+                cli.replication_interval_ms = std::stoi(argv[++i], &parsed, 10);
+                if (parsed != std::string(argv[i]).size() || cli.replication_interval_ms <= 0) {
+                    return false;
+                }
+            } catch (...) {
+                return false;
+            }
+            overrides.replication_interval_ms = true;
+            continue;
+        }
+
         return false;
     }
 
@@ -141,6 +195,11 @@ ServerOptions loadConfigOptions(const std::string& config_path) {
     options.wal_enabled = config.getBool("wal_enabled", options.wal_enabled);
     options.wal_path = config.getString("wal_path", options.wal_path);
     options.log_level = config.getString("log_level", options.log_level);
+    options.role = lightkv::parseReplicationRole(config.getString("role", "master"));
+    options.master_host = config.getString("master_host", options.master_host);
+    options.master_port = config.getInt("master_port", options.master_port);
+    options.replication_interval_ms =
+        config.getInt("replication_interval_ms", options.replication_interval_ms);
     return options;
 }
 
@@ -163,13 +222,25 @@ void applyOverrides(ServerOptions& options, const ServerOptions& cli, const Serv
     if (overrides.log_level) {
         options.log_level = cli.log_level;
     }
+    if (overrides.role) {
+        options.role = cli.role;
+    }
+    if (overrides.master_host) {
+        options.master_host = cli.master_host;
+    }
+    if (overrides.master_port) {
+        options.master_port = cli.master_port;
+    }
+    if (overrides.replication_interval_ms) {
+        options.replication_interval_ms = cli.replication_interval_ms;
+    }
 }
 
 }  // namespace
 
 int main(int argc, char* argv[]) {
     std::cout << "LightKV server starting..." << '\n';
-    std::cout << "Stage 7 - config logger and metrics" << '\n';
+    std::cout << "Stage 8 - WAL-offset master slave replication" << '\n';
 
     ServerOptions cli_options;
     ServerOverrides overrides;
@@ -192,7 +263,11 @@ int main(int argc, char* argv[]) {
         options.port,
         options.max_keys,
         options.wal_enabled,
-        options.wal_path);
+        options.wal_path,
+        options.role,
+        options.master_host,
+        options.master_port,
+        options.replication_interval_ms);
     if (!server.start()) {
         return 1;
     }

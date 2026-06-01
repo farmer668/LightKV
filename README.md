@@ -1,90 +1,169 @@
 # LightKV
 
-LightKV 是一个基于 C++17 的轻量级 KV 缓存系统。
+LightKV is a lightweight C++17 key-value cache project built stage by stage.
 
-## 当前阶段
+## Current Stage
 
-当前已完成：
+Completed:
 
-- Stage 0：项目骨架
-- Stage 1：线程安全内存 KVStore
-- Stage 2：文本协议解析和本地 CLI
-- Stage 3：Linux TCP Server + epoll
-- Stage 4：TTL 过期机制
-- Stage 5：LRU 淘汰机制
-- Stage 6：WAL 持久化与重启恢复
-- Stage 7：配置文件、日志系统和 Metrics
+- Stage 0: project scaffold
+- Stage 1: thread-safe in-memory KVStore
+- Stage 2: text protocol parser and local CLI
+- Stage 3: Linux TCP Server based on socket + epoll
+- Stage 4: TTL expiration
+- Stage 5: LRU eviction
+- Stage 6: WAL persistence and recovery
+- Stage 7: config file, logger, and metrics
+- Stage 8: WAL-offset master/slave replication
 
-## 配置
+## Build
 
-server 默认尝试读取：
+On Ubuntu:
+
+```sh
+make
+make test
+make run
+```
+
+`make` is equivalent to `make build`.
+
+## Configuration
+
+The server tries to load:
 
 ```text
 config/lightkv.example.conf
 ```
 
-如果配置文件不存在，则使用内置默认值。命令行参数优先级高于配置文件：
+Configuration priority:
 
 ```text
-命令行参数 > 配置文件 > 默认值
+command line arguments > config file > defaults
 ```
 
-启动示例：
+Example:
 
 ```sh
-./build/lightkv_server --config config/lightkv.example.conf
+./build/lightkv_server --config config/lightkv.example.conf --host 0.0.0.0 --port 6379
 ```
 
-命令行覆盖配置：
-
-```sh
-./build/lightkv_server --config config/lightkv.example.conf --host 0.0.0.0 --port 6380 --max-keys 20000
-```
-
-CLI 也支持配置文件：
-
-```sh
-./build/lightkv_cli --config config/lightkv.example.conf --wal-path data/lightkv_cli.wal
-```
-
-## 日志
-
-支持日志级别：
-
-- DEBUG
-- INFO
-- WARN
-- ERROR
-
-配置文件：
+Stage 8 replication settings:
 
 ```text
-log_level=INFO
+role=master
+master_host=127.0.0.1
+master_port=6379
+replication_interval_ms=1000
 ```
 
-命令行：
+Equivalent command line options:
 
 ```sh
-./build/lightkv_server --log-level WARN
+--role master|slave
+--master-host 127.0.0.1
+--master-port 6379
+--replication-interval-ms 1000
 ```
 
-## Metrics
+## Master/Slave Replication
 
-`INFO` 命令返回运行指标，包含：
+Stage 8 implements simplified master/slave replication based on WAL offsets.
 
-- KV/LRU/TTL：`keys`、`max_keys`、`evicted_keys`、`expired_keys`
-- WAL：`wal_enabled`、`wal_path`、`wal_records`
-- 命令计数：`total_commands`、`get_commands`、`set_commands`、`del_commands`、`expire_commands`、`ttl_commands`、`info_commands`
-- 命中统计：`hits`、`misses`
-- 连接统计：`connected_clients`、`total_connections`、`current_connections`
+- Master handles normal writes and appends WAL records.
+- WAL records use a monotonically increasing offset.
+- Slave periodically connects to master and sends `SYNC current_offset`.
+- Master returns WAL records whose offset is greater than the requested offset.
+- Slave replays received WAL records directly into `KVStore`.
+- Slave replay does not write local WAL again.
+- Slave is read-only for normal clients and rejects `SET`, `DEL`, `EXPIRE`, and `CLEAR`.
 
-示例：
+WAL offset format:
 
 ```text
+1|SET a 1
+2|EXPIRE a 10
+3|DEL a
+```
+
+Old Stage 6 WAL lines without an offset are read compatibly and assigned offsets by load order.
+
+### Start Master
+
+```sh
+./build/lightkv_server \
+  --role master \
+  --host 127.0.0.1 \
+  --port 6379 \
+  --wal-path data/master.wal
+```
+
+### Start Slave
+
+```sh
+./build/lightkv_server \
+  --role slave \
+  --host 127.0.0.1 \
+  --port 6380 \
+  --master-host 127.0.0.1 \
+  --master-port 6379 \
+  --wal-path data/slave.wal
+```
+
+### Verify
+
+Connect to master:
+
+```text
+SET a 1
+```
+
+Wait for slave sync, then connect to slave:
+
+```text
+GET a
+SET b 2
+```
+
+Expected:
+
+```text
+$1
+1
+-ERR slave is read-only
+```
+
+## Protocol
+
+Supported user commands:
+
+```text
+PING
+SET key value
+GET key
+DEL key
+EXISTS key
+EXPIRE key seconds
+TTL key
 INFO
+SIZE
+CLEAR
+QUIT
 ```
 
-返回 bulk string，内容类似：
+Internal replication command:
+
+```text
+REPLCONF ...
+SYNC offset
+```
+
+`REPLCONF` is accepted as a lightweight internal handshake and returns `+OK`.
+`SYNC` returns a RESP bulk string containing newline-separated WAL records after the requested offset.
+
+## INFO
+
+`INFO` returns a bulk string with KV, WAL, metrics, and replication status:
 
 ```text
 keys:2
@@ -94,32 +173,56 @@ expired_keys:0
 wal_enabled:true
 wal_path:data/lightkv.wal
 wal_records:3
+wal_last_offset:3
+role:master
+master_host:127.0.0.1
+master_port:6379
+replication_offset:3
+last_sync_records:0
+last_sync_status:none
+total_syncs:0
+failed_syncs:0
 total_commands:10
-get_commands:3
-set_commands:2
-del_commands:1
-expire_commands:1
-ttl_commands:1
-info_commands:1
 hits:2
 misses:1
-total_connections:1
-current_connections:1
 ```
 
 ## WAL
 
-- `SET`、成功 `DEL`、成功 `EXPIRE` 会写入 WAL。
-- 启动时 replay WAL 恢复内存 KV 状态。
-- 支持 `--wal-path`。
-- 支持 `--disable-wal`。
-- `EXPIRE` replay 使用相对时间简化。
-- 暂未实现 WAL rewrite / compaction。
+- `SET`, successful `DEL`, and successful `EXPIRE` append WAL.
+- Startup replays WAL to restore memory state.
+- `--wal-path` selects the WAL file.
+- `--disable-wal` disables WAL writes and recovery.
+- `EXPIRE` replay uses relative seconds from startup time.
+- Values still do not support spaces.
+- `CLEAR` is not persisted.
+- WAL rewrite / compaction is not implemented.
 
-## 当前限制
+## Stage 4 TTL Bugfix Note
 
-- 暂未实现主从复制。
-- 暂未实现一致性哈希。
-- 暂未实现 WAL rewrite / compaction。
-- value 暂不支持空格。
-- Stage 8 将实现主从复制。
+Previously, Ubuntu TCP verification exposed a TTL bug:
+
+```text
+SET token abc
+EXPIRE token 10
+TTL token
+GET token
+```
+
+`TTL token` could return a positive value while `GET token` incorrectly returned `$-1`. The fix centralized live-entry lookup in `KVStore` and keeps the expiration condition as:
+
+```text
+entry.has_ttl && now >= entry.expire_at
+```
+
+Now, when TTL is still positive, `GET token` returns `abc`; after expiration, `GET token` returns `$-1` and `TTL token` returns `:-2`.
+
+## Current Limits
+
+- No Raft.
+- No automatic leader election.
+- No sentinel.
+- No binary replication protocol.
+- No consistent hashing yet.
+- No WAL rewrite / compaction.
+- Stage 9 will focus on consistent hashing and client routing.
