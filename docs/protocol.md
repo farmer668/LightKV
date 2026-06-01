@@ -1,40 +1,38 @@
 # Protocol
 
-LightKV uses a simple line-based text protocol with RESP-style responses.
+LightKV uses a simple line-based text protocol with RESP-like responses. It is not a complete Redis protocol implementation.
 
-## User Commands
+## Normal Commands
 
 | Command | Args | Example |
 | --- | --- | --- |
 | PING | 0 | `PING` |
-| SET | 2 | `SET name yifei` |
-| GET | 1 | `GET name` |
-| DEL | 1 | `DEL name` |
-| EXISTS | 1 | `EXISTS name` |
-| EXPIRE | 2 | `EXPIRE name 10` |
-| TTL | 1 | `TTL name` |
-| INFO | 0 | `INFO` |
+| SET | 2 | `SET key value` |
+| GET | 1 | `GET key` |
+| DEL | 1 | `DEL key` |
+| EXISTS | 1 | `EXISTS key` |
 | SIZE | 0 | `SIZE` |
 | CLEAR | 0 | `CLEAR` |
+| EXPIRE | 2 | `EXPIRE key seconds` |
+| TTL | 1 | `TTL key` |
+| INFO | 0 | `INFO` |
 | QUIT | 0 | `QUIT` |
 
-Values do not support spaces in the current text protocol.
+Values currently do not support spaces.
 
-## Internal Replication Command
+## Internal Replication Commands
 
 ```text
 REPLCONF ...
 SYNC offset
 ```
 
-`REPLCONF` is accepted as a lightweight internal handshake and returns `+OK`.
-`SYNC` is intended for slave replication.
+- `REPLCONF` is a lightweight handshake and returns `+OK`.
+- `SYNC offset` returns WAL records whose offset is greater than `offset`.
+- Slave nodes return `-ERR only master can sync` for `SYNC`.
+- Replication commands do not write WAL.
 
-- Master returns WAL records with `record.offset > offset`.
-- Slave returns `-ERR only master can sync`.
-- `REPLCONF` and `SYNC` do not write WAL.
-
-Response is a bulk string. The body is newline-separated WAL records:
+`SYNC` returns a bulk string body:
 
 ```text
 1|SET a 1
@@ -42,32 +40,60 @@ Response is a bulk string. The body is newline-separated WAL records:
 3|EXPIRE b 10
 ```
 
-If there are no newer records, the body is empty.
+## Cluster CLI Commands
 
-## Slave Read-Only Rule
+`lightkv_cluster_cli` is a client-side routing tool.
 
-When `role=slave`, normal client write commands are rejected:
+| Command | Args | Behavior |
+| --- | --- | --- |
+| SET | 2 | Route key and send `SET key value` |
+| GET | 1 | Route key and send `GET key` |
+| DEL | 1 | Route key and send `DEL key` |
+| EXPIRE | 2 | Route key and send `EXPIRE key seconds` |
+| TTL | 1 | Route key and send `TTL key` |
+| INFO | 0 | Query all configured nodes |
+| ROUTE | 1 | Print the selected node for a key |
+| QUIT | 0 | Exit |
+
+Example:
 
 ```text
--ERR slave is read-only
+ROUTE user:1
+key user:1 -> node node-127.0.0.1:6379
 ```
 
-Rejected commands:
+## Response Formats
 
-- `SET`
-- `DEL`
-- `EXPIRE`
-- `CLEAR`
+Simple string:
 
-Read commands are still allowed:
+```text
++OK
+```
 
-- `PING`
-- `GET`
-- `EXISTS`
-- `SIZE`
-- `TTL`
-- `INFO`
-- `QUIT`
+Error:
+
+```text
+-ERR message
+```
+
+Integer:
+
+```text
+:1
+```
+
+Bulk string:
+
+```text
+$5
+yifei
+```
+
+Null bulk string:
+
+```text
+$-1
+```
 
 ## INFO Fields
 
@@ -120,33 +146,3 @@ Metrics:
 - `EXPIRE key seconds` writes WAL after success.
 - `GET`, `EXISTS`, `TTL`, `SIZE`, `INFO`, `CLEAR`, `REPLCONF`, and `SYNC` do not write WAL.
 - `CLEAR` is not persisted in the current stage.
-
-## Cluster CLI Commands
-
-`lightkv_cluster_cli` is a client-side routing tool. It is not a server-side cluster protocol.
-
-Startup:
-
-```sh
-./build/lightkv_cluster_cli --nodes 127.0.0.1:6379,127.0.0.1:6380 --virtual-nodes 100
-```
-
-Supported commands:
-
-| Command | Args | Behavior |
-| --- | --- | --- |
-| SET | 2 | Routes key to one node and sends `SET key value` |
-| GET | 1 | Routes key to one node and sends `GET key` |
-| DEL | 1 | Routes key to one node and sends `DEL key` |
-| EXPIRE | 2 | Routes key to one node and sends `EXPIRE key seconds` |
-| TTL | 1 | Routes key to one node and sends `TTL key` |
-| INFO | 0 | Queries all configured nodes |
-| ROUTE | 1 | Prints the node selected for the key |
-| QUIT | 0 | Exits the CLI |
-
-Example:
-
-```text
-ROUTE user:1
-key user:1 -> node node-127.0.0.1:6379
-```

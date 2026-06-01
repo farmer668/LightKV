@@ -54,6 +54,10 @@ set(LIGHTKV_CLIENT_SOURCES
     src/client/ClusterClient.cpp
 )
 
+set(LIGHTKV_BENCH_SOURCES
+    src/bench/BenchOptions.cpp
+)
+
 set(LIGHTKV_SERVER_SOURCES
     src/main.cpp
     ${LIGHTKV_CORE_SOURCES}
@@ -105,6 +109,18 @@ add_executable(lightkv_cluster_cli
 target_include_directories(lightkv_cluster_cli PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
+
+add_executable(lightkv_bench
+    tools/lightkv_bench.cpp
+    ${LIGHTKV_BENCH_SOURCES}
+    src/client/LightKVClient.cpp
+)
+
+target_include_directories(lightkv_bench PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(lightkv_bench PRIVATE Threads::Threads)
 
 enable_testing()
 
@@ -315,3 +331,14 @@ target_include_directories(test_cluster_client_routing PRIVATE
 )
 
 add_test(NAME test_cluster_client_routing COMMAND test_cluster_client_routing)
+
+add_executable(test_bench_config
+    tests/test_bench_config.cpp
+    ${LIGHTKV_BENCH_SOURCES}
+)
+
+target_include_directories(test_bench_config PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_bench_config COMMAND test_bench_config)

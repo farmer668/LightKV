@@ -2,69 +2,66 @@
 
 ## Stage 0
 
-- Created the LightKV project scaffold.
+Created the project scaffold, CMake layout, Makefile, source/include/tests/docs directories, and a minimal server entry point.
+
+Validation focus: repository layout and basic build structure.
 
 ## Stage 1
 
-- Added `Status`, `Entry`, and thread-safe `KVStore`.
-- Supported set/get/del/exists/size/clear.
+Added `Status`, `Entry`, and thread-safe `KVStore`. Implemented set/get/del/exists/size/clear on top of `std::unordered_map`.
+
+Validation focus: assert-based KVStore unit tests.
 
 ## Stage 2
 
-- Added `Command`, `Parser`, `Response`, and `CommandExecutor`.
-- Added local interactive `lightkv_cli`.
+Added `Command`, `Parser`, `Response`, and `CommandExecutor`. Added `lightkv_cli` for local command execution.
+
+Validation focus: parser and command executor tests.
 
 ## Stage 3
 
-- Added `Buffer`, `TcpConnection`, and Linux socket + epoll `TcpServer`.
+Added `Buffer`, `TcpConnection`, and Linux socket + epoll `TcpServer`.
+
+Validation focus: Buffer tests on Windows and Linux TCP validation on Ubuntu.
 
 ## Stage 4
 
-- Added TTL support to `KVStore`.
-- Added `EXPIRE` and `TTL`.
-- Implemented lazy expiration and `cleanupExpired()`.
+Added TTL support with `EXPIRE`, `TTL`, lazy deletion, and periodic cleanup.
+
+Validation focus: TTL before/after expiration, CommandExecutor TTL behavior, and regression tests for the TTL positive GET bug.
 
 ## Stage 5
 
-- Added `LRUCache`.
-- Added `max_keys` and O(1) LRU eviction to `KVStore`.
-- Added `INFO`.
+Added `LRUCache` and integrated max key capacity into `KVStore`. Added eviction counters and `INFO`.
+
+Validation focus: LRU touch/remove/eviction, GET refresh, SET refresh, DEL and expiration cleanup.
 
 ## Stage 6
 
-- Added `Wal`.
-- Wrote `SET`, successful `DEL`, and successful `EXPIRE` to WAL.
-- Replayed WAL during `lightkv_server` and `lightkv_cli` startup.
+Added WAL persistence and restart recovery. Successful `SET`, `DEL`, and `EXPIRE` append text records. Startup replays WAL into memory.
+
+Validation focus: WAL append, load, replay, invalid record handling, and no duplicate WAL write during replay.
 
 ## Stage 7
 
-- Added `Config` for key=value config files.
-- Added `Logger` with DEBUG/INFO/WARN/ERROR levels.
-- Added `Metrics` for command counts, hits/misses, and connection counts.
-- Added config support to server and CLI.
-- Added metrics fields to `INFO`.
-- Added `test_config`, `test_logger`, and `test_metrics`.
+Added `Config`, `Logger`, and `Metrics`. Server and CLI gained config options. `INFO` gained command, hit/miss, connection, WAL, and storage metrics.
+
+Validation focus: config parsing, logger behavior, metrics counters, and INFO output.
 
 ## Stage 8
 
-- Changed WAL format to `offset|command`.
-- Added compatible loading for old WAL records without offsets.
-- Added `WalRecord`, `loadRecordsAfter(offset)`, and `lastOffset()`.
-- Added `WalReplayer` so replay does not go through `CommandExecutor` and does not append WAL again.
-- Added replication state: role, master address, replication offset, sync status, and sync counters.
-- Added internal `REPLCONF` handshake and `SYNC offset` command for master-side incremental WAL fetch.
-- Added slave read-only enforcement for `SET`, `DEL`, `EXPIRE`, and `CLEAR`.
-- Added Linux/Unix slave background sync loop.
-- Added replication fields to `INFO`.
-- Added tests: `test_wal_offset`, `test_wal_replayer`, and `test_replication_state`.
+Added WAL offsets and simplified master/slave replication. Slave periodically sends `SYNC offset`, replays returned WAL records, and rejects normal writes.
+
+Validation focus: WAL offset loading, `WalReplayer`, replication state, `SYNC`, and slave read-only behavior.
 
 ## Stage 9
 
-- Added `NodeInfo` and `ConsistentHash`.
-- Implemented a hash ring backed by `std::map<size_t, NodeInfo>`.
-- Added virtual nodes with a default of 100 per real node.
-- Added `LightKVClient` for simple single-node TCP requests.
-- Added `ClusterClient` for key-based client-side routing.
-- Added `lightkv_cluster_cli` with `SET`, `GET`, `DEL`, `EXPIRE`, `TTL`, `INFO`, `ROUTE`, and `QUIT`.
-- Added `test_consistent_hash` and `test_cluster_client_routing`.
-- Documented that Stage 9 does not implement server-side cluster membership, data migration, gossip, Redis Cluster slots, or failover.
+Added consistent hashing and client-side cluster routing. Implemented `NodeInfo`, `ConsistentHash`, `LightKVClient`, `ClusterClient`, and `lightkv_cluster_cli`.
+
+Validation focus: stable key routing, virtual node count, remove-node behavior, empty-ring behavior, and cluster CLI smoke tests.
+
+## Stage 10
+
+Added `lightkv_bench`, benchmark option parsing, `make bench`, and benchmark scripts. Finalized project documentation and added resume/interview notes.
+
+Validation focus: benchmark option parsing, benchmark tool smoke run, existing unit tests, and final documentation consistency.

@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
     applyOverrides(options, cli_options, overrides);
     lightkv::Logger::instance().setLevel(lightkv::parseLogLevel(options.log_level));
 
-    std::cout << "LightKV CLI - Stage 9" << '\n';
+    std::cout << "LightKV CLI - Stage 10" << '\n';
     std::cout << "Type QUIT to exit." << '\n';
 
     lightkv::KVStore store(options.max_keys);

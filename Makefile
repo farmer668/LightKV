@@ -1,4 +1,4 @@
-.PHONY: all build run test cli clean
+.PHONY: all build run test cli bench clean
 
 all: build
 
@@ -42,6 +42,24 @@ cli:
 		./build/Release/lightkv_cli; \
 	else \
 		echo "lightkv_cli not found. Run 'make' first."; \
+		exit 1; \
+	fi
+
+bench:
+	@if [ -f build/Debug/lightkv_bench.exe ]; then \
+		build/Debug/lightkv_bench.exe --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	elif [ -f build/Release/lightkv_bench.exe ]; then \
+		build/Release/lightkv_bench.exe --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	elif [ -f build/lightkv_bench.exe ]; then \
+		build/lightkv_bench.exe --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	elif [ -f build/lightkv_bench ]; then \
+		./build/lightkv_bench --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	elif [ -f build/Debug/lightkv_bench ]; then \
+		./build/Debug/lightkv_bench --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	elif [ -f build/Release/lightkv_bench ]; then \
+		./build/Release/lightkv_bench --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8; \
+	else \
+		echo "lightkv_bench not found. Run 'make' first."; \
 		exit 1; \
 	fi
 

@@ -2,40 +2,45 @@
 
 ## Stage 4 bugfix: GET returned null before TTL expired
 
-- Reproduction: `PING`, `SET token abc`, `EXPIRE token 10`, `TTL token`, `GET token`.
-- Wrong behavior: `TTL token` returned a positive value, but `GET token` returned `$-1`.
-- Root cause: TTL live-entry access was not centralized, which made it easy to delete keys that had TTL but had not expired.
-- Fix: shared `findLiveEntryLocked()` / `eraseIfExpiredLocked()` logic and only expire when `has_ttl == true && now >= expire_at`.
-- Verification: added TTL and CommandExecutor regression tests.
+Reproduction:
 
-## Stage 4 bugfix: GET returned null while TTL was still positive
+```text
+SET token abc
+EXPIRE token 10
+TTL token
+GET token
+```
 
-- Reproduction: `SET token abc`, `EXPIRE token 10`, `TTL token`, `GET token`.
-- Wrong behavior: `TTL token` returned a positive value such as `:6`, but `GET token` returned `$-1`.
-- Root cause: `get`, `exists`, `ttl`, and `expire` did not share one live-entry path.
-- Fix: route those methods through the same live-entry helper and keep the exact expiration condition as `has_ttl && now >= expire_at`.
-- Verification: `test_ttl_regression` and CommandExecutor tests ensure positive TTL implies GET returns the value.
+Wrong behavior:
 
-## Stage 5
+- `TTL token` returned a positive value, such as `:6`.
+- `GET token` returned `$-1`.
 
-- No major issues.
+Root cause:
 
-## Stage 6
+- TTL live-entry access was not centralized.
+- `get`, `exists`, `ttl`, and `expire` needed to share the same expiration rule.
 
-- No major issues.
+Fix:
 
-## Stage 7
-
-- No major issues.
+- Added shared live-entry lookup helpers.
+- Kept the exact expiration condition as `entry.has_ttl && now >= entry.expire_at`.
+- Added regression coverage to ensure positive TTL means GET returns the value.
 
 ## Stage 8
 
 - No major issues.
-- Windows g++ validation covers platform-independent WAL offset, replayer, parser, replication state, and CommandExecutor behavior.
-- Full Linux TCP master/slave `nc` validation is left to the Ubuntu VM.
+- Windows validation covered WAL offset, WAL replay, parser, replication state, and CommandExecutor behavior.
+- Full Linux TCP master/slave `nc` verification is left to Ubuntu.
 
 ## Stage 9
 
 - No major issues.
-- Windows g++ validation covers consistent hashing, ClusterClient routing, and cluster CLI parsing.
-- Full Linux TCP client and multi-node cluster CLI verification is left to the Ubuntu VM.
+- Windows validation covered consistent hashing, ClusterClient routing, and cluster CLI parsing.
+- Full Linux TCP client and multi-node cluster CLI verification is left to Ubuntu.
+
+## Stage 10
+
+- No major issues.
+- Windows validation covered benchmark option parsing and benchmark smoke execution.
+- Real benchmark results are intentionally not fabricated and should be filled after Ubuntu pressure testing.
