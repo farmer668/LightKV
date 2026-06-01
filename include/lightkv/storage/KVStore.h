@@ -25,13 +25,16 @@ public:
     size_t cleanupExpired(size_t max_scan = 100);
 
 private:
+    using EntryMap = std::unordered_map<std::string, Entry>;
+
     bool isExpired(const Entry& entry, std::chrono::steady_clock::time_point now) const;
-    bool eraseIfExpiredLocked(
-        std::unordered_map<std::string, Entry>::iterator it,
+    bool eraseIfExpiredLocked(EntryMap::iterator it, std::chrono::steady_clock::time_point now);
+    EntryMap::iterator findLiveEntryLocked(
+        const std::string& key,
         std::chrono::steady_clock::time_point now);
 
     mutable std::shared_mutex mutex_;
-    std::unordered_map<std::string, Entry> data_;
+    EntryMap data_;
 };
 
 }  // namespace lightkv

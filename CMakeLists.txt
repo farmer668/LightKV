@@ -132,3 +132,15 @@ target_include_directories(test_ttl PRIVATE
 target_link_libraries(test_ttl PRIVATE Threads::Threads)
 
 add_test(NAME test_ttl COMMAND test_ttl)
+
+add_executable(test_ttl_regression
+    tests/test_ttl_regression.cpp
+    ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_CORE_SOURCES}
+)
+
+target_include_directories(test_ttl_regression PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_ttl_regression COMMAND test_ttl_regression)

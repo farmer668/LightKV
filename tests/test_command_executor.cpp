@@ -48,7 +48,9 @@ int main() {
     assert(executor.execute(parser.parseLine("EXPIRE token 10")) == ":1\r\n");
     const auto ttl_token = executor.execute(parser.parseLine("TTL token"));
     assert(ttl_token != ":-2\r\n");
-    assert(executor.execute(parser.parseLine("GET token")) == "$3\r\nabc\r\n");
+    const auto get_token = executor.execute(parser.parseLine("GET token"));
+    assert(get_token.find("abc") != std::string::npos);
+    assert(get_token == "$3\r\nabc\r\n");
 
     assert(executor.execute(parser.parseLine("SET b 2")) == "+OK\r\n");
     assert(executor.execute(parser.parseLine("SIZE")) == ":3\r\n");

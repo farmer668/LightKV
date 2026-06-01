@@ -4,7 +4,26 @@
 #include <chrono>
 #include <thread>
 
+namespace {
+
+void test_get_before_expire_after_expire_set() {
+    lightkv::KVStore store;
+    assert(store.set("token", "abc").ok());
+    assert(store.expire("token", 10));
+
+    const auto remaining = store.ttl("token");
+    assert(remaining >= 0);
+
+    const auto value = store.get("token");
+    assert(value.has_value());
+    assert(value.value() == "abc");
+}
+
+}  // namespace
+
 int main() {
+    test_get_before_expire_after_expire_set();
+
     {
         lightkv::KVStore store;
         assert(store.set("a", "1").ok());
@@ -13,16 +32,6 @@ int main() {
         const auto value = store.get("a");
         assert(value.has_value());
         assert(value.value() == "1");
-    }
-
-    {
-        lightkv::KVStore store;
-        assert(store.set("token", "abc").ok());
-        assert(store.expire("token", 10));
-        const auto value = store.get("token");
-        assert(value.has_value());
-        assert(value.value() == "abc");
-        assert(store.ttl("token") >= 0);
     }
 
     {

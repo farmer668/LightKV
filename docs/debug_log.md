@@ -31,3 +31,11 @@
 - 根因：TTL 访问路径缺少专门覆盖 “TTL 未过期时 GET 必须返回 value” 的回归测试，过期删除判断在多个方法中分散，容易误删设置了 TTL 但尚未过期的 key。
 - 修复方式：将 KVStore 中“如果已过期则删除”的逻辑收敛到 `eraseIfExpiredLocked()`，并确保只有 `has_ttl == true && now >= expire_at` 时才删除。
 - 验证方式：新增 TTL 与 CommandExecutor 回归测试，覆盖 TTL 正数时 GET 返回 bulk string、过期后 GET 返回 null、cleanupExpired 不删除未过期 key。
+
+## Stage 4 bugfix: GET returned null while TTL was still positive
+
+- 复现命令：`SET token abc`、`EXPIRE token 10`、`TTL token`、`GET token`。
+- 错误现象：`TTL token` 返回正数，例如 `:6`，但 `GET token` 返回 `$-1`。
+- 根因：代码中没有 const `KVStore::get` 重载，`CommandExecutor` 调用的是唯一的非 const `KVStore::get`。问题集中在 KVStore 的 live-entry 访问路径不够集中，`get`、`exists`、`ttl`、`expire` 分别做查找和过期删除，缺少一个共享入口来保证 “has_ttl 为 true 但 now < expire_at” 仍然是有效 key。
+- 修复方式：新增 `findLiveEntryLocked()`，让 `get`、`exists`、`ttl`、`expire` 统一通过同一个 helper 查找 key 并仅在 `has_ttl == true && now >= expire_at` 时删除；新增 `test_ttl_regression` 覆盖 `TTL` 仍有效时 `GET` 必须返回 `abc`。
+- 验证方式：Ubuntu 可执行 `make clean`、`make`、`make test`、`make run`，再用 `nc 127.0.0.1 6379` 输入上述复现命令，期望 `GET token` 返回 `$3\r\nabc\r\n`。
