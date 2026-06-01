@@ -1,5 +1,6 @@
 #include "lightkv/protocol/CommandExecutor.h"
 #include "lightkv/protocol/Parser.h"
+#include "lightkv/persistence/Wal.h"
 #include "lightkv/storage/KVStore.h"
 
 #include <cstddef>
@@ -9,7 +10,7 @@
 namespace {
 
 void printUsage(const char* program) {
-    std::cerr << "Usage: " << program << " [--max-keys COUNT]\n";
+    std::cerr << "Usage: " << program << " [--max-keys COUNT] [--wal-path PATH] [--disable-wal]\n";
 }
 
 bool parseSizeArg(const std::string& text, size_t& value) {
@@ -26,13 +27,24 @@ bool parseSizeArg(const std::string& text, size_t& value) {
     }
 }
 
-bool parseArgs(int argc, char* argv[], size_t& max_keys) {
+bool parseArgs(int argc, char* argv[], size_t& max_keys, bool& wal_enabled, std::string& wal_path) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--max-keys") {
             if (i + 1 >= argc || !parseSizeArg(argv[++i], max_keys)) {
                 return false;
             }
+            continue;
+        }
+        if (arg == "--wal-path") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            wal_path = argv[++i];
+            continue;
+        }
+        if (arg == "--disable-wal") {
+            wal_enabled = false;
             continue;
         }
         return false;
@@ -44,17 +56,32 @@ bool parseArgs(int argc, char* argv[], size_t& max_keys) {
 
 int main(int argc, char* argv[]) {
     size_t max_keys = 10000;
-    if (!parseArgs(argc, argv, max_keys)) {
+    bool wal_enabled = true;
+    std::string wal_path = "data/lightkv_cli.wal";
+    if (!parseArgs(argc, argv, max_keys, wal_enabled, wal_path)) {
         printUsage(argv[0]);
         return 1;
     }
 
-    std::cout << "LightKV CLI - Stage 5" << '\n';
+    std::cout << "LightKV CLI - Stage 6" << '\n';
     std::cout << "Type QUIT to exit." << '\n';
 
     lightkv::KVStore store(max_keys);
+    lightkv::Wal wal(wal_path);
+    if (wal_enabled) {
+        lightkv::replayWalFile(wal, store);
+        if (!wal.open()) {
+            std::cerr << "failed to open WAL: " << wal_path << '\n';
+            return 1;
+        }
+    }
+
     lightkv::Parser parser;
-    lightkv::CommandExecutor executor(store);
+    lightkv::CommandExecutor executor(
+        store,
+        wal_enabled ? &wal : nullptr,
+        wal_enabled,
+        wal_path);
 
     std::string line;
     while (true) {
@@ -72,5 +99,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    wal.close();
     return 0;
 }

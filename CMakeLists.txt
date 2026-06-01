@@ -28,6 +28,7 @@ set(LIGHTKV_PROTOCOL_SOURCES
     src/protocol/Parser.cpp
     src/protocol/Response.cpp
     src/protocol/CommandExecutor.cpp
+    src/persistence/Wal.cpp
 )
 
 set(LIGHTKV_NET_COMMON_SOURCES
@@ -158,3 +159,15 @@ target_include_directories(test_lru PRIVATE
 target_link_libraries(test_lru PRIVATE Threads::Threads)
 
 add_test(NAME test_lru COMMAND test_lru)
+
+add_executable(test_wal
+    tests/test_wal.cpp
+    ${LIGHTKV_PROTOCOL_SOURCES}
+    ${LIGHTKV_CORE_SOURCES}
+)
+
+target_include_directories(test_wal PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_wal COMMAND test_wal)

@@ -30,11 +30,23 @@ std::string errnoMessage(const std::string& prefix) {
 
 }  // namespace
 
-TcpServer::TcpServer(std::string host, int port, size_t max_keys)
-    : host_(std::move(host)), port_(port), store_(max_keys), executor_(store_) {}
+TcpServer::TcpServer(
+    std::string host,
+    int port,
+    size_t max_keys,
+    bool wal_enabled,
+    std::string wal_path)
+    : host_(std::move(host)),
+      port_(port),
+      wal_enabled_(wal_enabled),
+      wal_path_(std::move(wal_path)),
+      store_(max_keys),
+      wal_(wal_path_),
+      executor_(store_, wal_enabled_ ? &wal_ : nullptr, wal_enabled_, wal_path_) {}
 
 TcpServer::~TcpServer() {
     stopExpireWorker();
+    wal_.close();
 
     for (auto& item : connections_) {
         ::close(item.first);
@@ -51,6 +63,14 @@ TcpServer::~TcpServer() {
 
 bool TcpServer::start() {
     ::signal(SIGPIPE, SIG_IGN);
+
+    if (wal_enabled_) {
+        replayWalFile(wal_, store_);
+        if (!wal_.open()) {
+            std::cerr << "failed to open WAL: " << wal_path_ << '\n';
+            return false;
+        }
+    }
 
     if (!setupListenSocket()) {
         return false;

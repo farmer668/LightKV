@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lightkv/net/TcpConnection.h"
+#include "lightkv/persistence/Wal.h"
 #include "lightkv/protocol/CommandExecutor.h"
 #include "lightkv/protocol/Parser.h"
 #include "lightkv/storage/KVStore.h"
@@ -15,7 +16,12 @@ namespace lightkv {
 
 class TcpServer {
 public:
-    TcpServer(std::string host, int port, size_t max_keys = 10000);
+    TcpServer(
+        std::string host,
+        int port,
+        size_t max_keys = 10000,
+        bool wal_enabled = true,
+        std::string wal_path = "data/lightkv.wal");
     ~TcpServer();
 
     bool start();
@@ -35,7 +41,10 @@ private:
     int port_;
     int listen_fd_ = -1;
     int epoll_fd_ = -1;
+    bool wal_enabled_;
+    std::string wal_path_;
     KVStore store_;
+    Wal wal_;
     Parser parser_;
     CommandExecutor executor_;
     std::unordered_map<int, TcpConnection> connections_;

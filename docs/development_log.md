@@ -35,8 +35,16 @@
 
 - 新增 `LRUCache`，使用 `std::list + std::unordered_map` 维护访问顺序。
 - KVStore 增加 `max_keys` 容量限制和 LRU 淘汰。
-- GET 命中刷新 LRU，SET 新增或更新刷新 LRU。
-- DEL、CLEAR、过期删除同步维护 LRU 状态。
 - 新增 `INFO` 命令，返回 keys、max_keys、evicted_keys、expired_keys。
 - lightkv_server 和 lightkv_cli 支持 `--max-keys` 参数。
 - 新增 `test_lru`。
+
+## Stage 6
+
+- 新增 `Wal`，支持文本 WAL append、flush 和 loadRecords。
+- SET、成功 DEL、成功 EXPIRE 写入 WAL。
+- lightkv_server 和 lightkv_cli 启动时 replay WAL 恢复 KVStore。
+- 支持 `--wal-path` 和 `--disable-wal`。
+- INFO 增加 wal_enabled、wal_path、wal_records 字段。
+- replay 期间直接操作 KVStore，不通过 CommandExecutor，避免重复写 WAL。
+- 新增 `test_wal`。

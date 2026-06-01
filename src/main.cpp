@@ -9,7 +9,9 @@
 namespace {
 
 void printUsage(const char* program) {
-    std::cerr << "Usage: " << program << " [--host HOST] [--port PORT] [--max-keys COUNT]\n";
+    std::cerr << "Usage: " << program
+              << " [--host HOST] [--port PORT] [--max-keys COUNT]"
+              << " [--wal-path PATH] [--disable-wal]\n";
 }
 
 bool parseSizeArg(const std::string& text, size_t& value) {
@@ -26,7 +28,14 @@ bool parseSizeArg(const std::string& text, size_t& value) {
     }
 }
 
-bool parseArgs(int argc, char* argv[], std::string& host, int& port, size_t& max_keys) {
+bool parseArgs(
+    int argc,
+    char* argv[],
+    std::string& host,
+    int& port,
+    size_t& max_keys,
+    bool& wal_enabled,
+    std::string& wal_path) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--host") {
@@ -64,6 +73,19 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port, size_t& max
             continue;
         }
 
+        if (arg == "--wal-path") {
+            if (i + 1 >= argc) {
+                return false;
+            }
+            wal_path = argv[++i];
+            continue;
+        }
+
+        if (arg == "--disable-wal") {
+            wal_enabled = false;
+            continue;
+        }
+
         return false;
     }
 
@@ -74,12 +96,14 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port, size_t& max
 
 int main(int argc, char* argv[]) {
     std::cout << "LightKV server starting..." << '\n';
-    std::cout << "Stage 5 - LRU eviction" << '\n';
+    std::cout << "Stage 6 - WAL persistence and recovery" << '\n';
 
     std::string host = "127.0.0.1";
     int port = 6379;
     size_t max_keys = 10000;
-    if (!parseArgs(argc, argv, host, port, max_keys)) {
+    bool wal_enabled = true;
+    std::string wal_path = "data/lightkv.wal";
+    if (!parseArgs(argc, argv, host, port, max_keys, wal_enabled, wal_path)) {
         printUsage(argv[0]);
         return 1;
     }
@@ -87,7 +111,7 @@ int main(int argc, char* argv[]) {
 #ifdef LIGHTKV_ENABLE_TCP_SERVER
     std::cout << "Platform: Linux/Unix target build" << '\n';
 
-    lightkv::TcpServer server(host, port, max_keys);
+    lightkv::TcpServer server(host, port, max_keys, wal_enabled, wal_path);
     if (!server.start()) {
         return 1;
     }

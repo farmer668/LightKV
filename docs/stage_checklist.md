@@ -6,7 +6,7 @@
 - [x] Stage 3：Linux TCP Server + epoll
 - [x] Stage 4：TTL 过期机制
 - [x] Stage 5：LRU 淘汰机制
-- [ ] Stage 6：WAL 持久化恢复
+- [x] Stage 6：WAL 持久化恢复
 - [ ] Stage 7：配置、日志、metrics
 - [ ] Stage 8：主从复制
 - [ ] Stage 9：一致性哈希和客户端路由

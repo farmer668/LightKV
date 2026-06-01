@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <limits>
+#include <sstream>
 #include <string>
+#include <utility>
 
 namespace lightkv {
 
@@ -32,7 +34,15 @@ bool parseSeconds(const std::string& text, int& seconds) {
 
 }  // namespace
 
-CommandExecutor::CommandExecutor(KVStore& store) : store_(store) {}
+CommandExecutor::CommandExecutor(
+    KVStore& store,
+    Wal* wal,
+    bool wal_enabled,
+    std::string wal_path)
+    : store_(store),
+      wal_(wal),
+      wal_enabled_(wal_enabled),
+      wal_path_(std::move(wal_path)) {}
 
 std::string CommandExecutor::execute(const Command& command) {
     switch (command.type) {
@@ -48,6 +58,9 @@ std::string CommandExecutor::execute(const Command& command) {
             const auto status = store_.set(command.args[0], command.args[1]);
             if (!status.ok()) {
                 return Response::error(status.toString());
+            }
+            if (wal_enabled_ && wal_ != nullptr) {
+                wal_->appendSet(command.args[0], command.args[1]);
             }
             return Response::simpleString("OK");
         }
@@ -65,7 +78,13 @@ std::string CommandExecutor::execute(const Command& command) {
             if (!hasArgCount(command, 1)) {
                 return Response::error("wrong number of arguments");
             }
-            return Response::integer(store_.del(command.args[0]) ? 1 : 0);
+            if (store_.del(command.args[0])) {
+                if (wal_enabled_ && wal_ != nullptr) {
+                    wal_->appendDel(command.args[0]);
+                }
+                return Response::integer(1);
+            }
+            return Response::integer(0);
         case CommandType::Exists:
             if (!hasArgCount(command, 1)) {
                 return Response::error("wrong number of arguments");
@@ -79,13 +98,30 @@ std::string CommandExecutor::execute(const Command& command) {
             if (!parseSeconds(command.args[1], seconds)) {
                 return Response::error("invalid expire seconds");
             }
-            return Response::integer(store_.expire(command.args[0], seconds) ? 1 : 0);
+            if (store_.expire(command.args[0], seconds)) {
+                if (wal_enabled_ && wal_ != nullptr) {
+                    if (seconds <= 0) {
+                        wal_->appendDel(command.args[0]);
+                    } else {
+                        wal_->appendExpire(command.args[0], seconds);
+                    }
+                }
+                return Response::integer(1);
+            }
+            return Response::integer(0);
         }
         case CommandType::Info:
             if (!hasArgCount(command, 0)) {
                 return Response::error("wrong number of arguments");
             }
-            return Response::bulkString(store_.info());
+            {
+                std::ostringstream info;
+                info << store_.info() << '\n';
+                info << "wal_enabled:" << (wal_enabled_ ? "true" : "false") << '\n';
+                info << "wal_path:" << wal_path_ << '\n';
+                info << "wal_records:" << ((wal_enabled_ && wal_ != nullptr) ? wal_->recordsWritten() : 0);
+                return Response::bulkString(info.str());
+            }
         case CommandType::Size:
             if (!hasArgCount(command, 0)) {
                 return Response::error("wrong number of arguments");

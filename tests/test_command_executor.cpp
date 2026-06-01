@@ -27,6 +27,8 @@ int main() {
     assert(info_response.find("max_keys:10000") != std::string::npos);
     assert(info_response.find("evicted_keys:0") != std::string::npos);
     assert(info_response.find("expired_keys:0") != std::string::npos);
+    assert(info_response.find("wal_enabled:false") != std::string::npos);
+    assert(info_response.find("wal_records:0") != std::string::npos);
 
     assert(executor.execute(parser.parseLine("SIZE")) == ":1\r\n");
 
