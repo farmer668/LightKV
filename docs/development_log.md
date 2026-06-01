@@ -57,3 +57,14 @@
 - Added Linux/Unix slave background sync loop.
 - Added replication fields to `INFO`.
 - Added tests: `test_wal_offset`, `test_wal_replayer`, and `test_replication_state`.
+
+## Stage 9
+
+- Added `NodeInfo` and `ConsistentHash`.
+- Implemented a hash ring backed by `std::map<size_t, NodeInfo>`.
+- Added virtual nodes with a default of 100 per real node.
+- Added `LightKVClient` for simple single-node TCP requests.
+- Added `ClusterClient` for key-based client-side routing.
+- Added `lightkv_cluster_cli` with `SET`, `GET`, `DEL`, `EXPIRE`, `TTL`, `INFO`, `ROUTE`, and `QUIT`.
+- Added `test_consistent_hash` and `test_cluster_client_routing`.
+- Documented that Stage 9 does not implement server-side cluster membership, data migration, gossip, Redis Cluster slots, or failover.

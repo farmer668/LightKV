@@ -45,6 +45,15 @@ set(LIGHTKV_NET_COMMON_SOURCES
     src/net/Buffer.cpp
 )
 
+set(LIGHTKV_CLUSTER_SOURCES
+    src/cluster/ConsistentHash.cpp
+)
+
+set(LIGHTKV_CLIENT_SOURCES
+    src/client/LightKVClient.cpp
+    src/client/ClusterClient.cpp
+)
+
 set(LIGHTKV_SERVER_SOURCES
     src/main.cpp
     ${LIGHTKV_CORE_SOURCES}
@@ -86,6 +95,16 @@ target_include_directories(lightkv_cli PRIVATE
 )
 
 target_link_libraries(lightkv_cli PRIVATE Threads::Threads)
+
+add_executable(lightkv_cluster_cli
+    tools/lightkv_cluster_cli.cpp
+    ${LIGHTKV_CLUSTER_SOURCES}
+    ${LIGHTKV_CLIENT_SOURCES}
+)
+
+target_include_directories(lightkv_cluster_cli PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
 
 enable_testing()
 
@@ -273,3 +292,26 @@ target_include_directories(test_metrics PRIVATE
 )
 
 add_test(NAME test_metrics COMMAND test_metrics)
+
+add_executable(test_consistent_hash
+    tests/test_consistent_hash.cpp
+    ${LIGHTKV_CLUSTER_SOURCES}
+)
+
+target_include_directories(test_consistent_hash PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_consistent_hash COMMAND test_consistent_hash)
+
+add_executable(test_cluster_client_routing
+    tests/test_cluster_client_routing.cpp
+    ${LIGHTKV_CLUSTER_SOURCES}
+    ${LIGHTKV_CLIENT_SOURCES}
+)
+
+target_include_directories(test_cluster_client_routing PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_cluster_client_routing COMMAND test_cluster_client_routing)

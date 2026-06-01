@@ -120,3 +120,33 @@ Metrics:
 - `EXPIRE key seconds` writes WAL after success.
 - `GET`, `EXISTS`, `TTL`, `SIZE`, `INFO`, `CLEAR`, `REPLCONF`, and `SYNC` do not write WAL.
 - `CLEAR` is not persisted in the current stage.
+
+## Cluster CLI Commands
+
+`lightkv_cluster_cli` is a client-side routing tool. It is not a server-side cluster protocol.
+
+Startup:
+
+```sh
+./build/lightkv_cluster_cli --nodes 127.0.0.1:6379,127.0.0.1:6380 --virtual-nodes 100
+```
+
+Supported commands:
+
+| Command | Args | Behavior |
+| --- | --- | --- |
+| SET | 2 | Routes key to one node and sends `SET key value` |
+| GET | 1 | Routes key to one node and sends `GET key` |
+| DEL | 1 | Routes key to one node and sends `DEL key` |
+| EXPIRE | 2 | Routes key to one node and sends `EXPIRE key seconds` |
+| TTL | 1 | Routes key to one node and sends `TTL key` |
+| INFO | 0 | Queries all configured nodes |
+| ROUTE | 1 | Prints the node selected for the key |
+| QUIT | 0 | Exits the CLI |
+
+Example:
+
+```text
+ROUTE user:1
+key user:1 -> node node-127.0.0.1:6379
+```

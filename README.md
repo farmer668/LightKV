@@ -15,6 +15,7 @@ Completed:
 - Stage 6: WAL persistence and recovery
 - Stage 7: config file, logger, and metrics
 - Stage 8: WAL-offset master/slave replication
+- Stage 9: consistent hashing and client-side cluster routing
 
 ## Build
 
@@ -133,6 +134,55 @@ $1
 -ERR slave is read-only
 ```
 
+## Client-Side Sharding
+
+Stage 9 adds client-side sharding. LightKV servers still run as independent nodes; the client decides which node owns a key.
+
+- `ConsistentHash` keeps a hash ring in `std::map<size_t, NodeInfo>`.
+- Each real node has virtual nodes, defaulting to 100.
+- Virtual node keys use `node_id#index`.
+- `ClusterClient` routes `SET`, `GET`, `DEL`, `EXPIRE`, and `TTL` by key.
+- `LightKVClient` wraps one short TCP request to a single LightKV server.
+- `infoAll()` queries every configured node.
+
+This stage does not implement server-side cluster membership, data migration, gossip, Redis Cluster slots, or failover.
+
+### Start Three Nodes
+
+```sh
+./build/lightkv_server --host 127.0.0.1 --port 6379 --wal-path data/node1.wal
+./build/lightkv_server --host 127.0.0.1 --port 6380 --wal-path data/node2.wal
+./build/lightkv_server --host 127.0.0.1 --port 6381 --wal-path data/node3.wal
+```
+
+### Start Cluster CLI
+
+```sh
+./build/lightkv_cluster_cli --nodes 127.0.0.1:6379,127.0.0.1:6380,127.0.0.1:6381
+```
+
+Optional:
+
+```sh
+./build/lightkv_cluster_cli --nodes 127.0.0.1:6379,127.0.0.1:6380 --virtual-nodes 100
+```
+
+Example commands:
+
+```text
+ROUTE user:1
+SET user:1 yifei
+GET user:1
+INFO
+QUIT
+```
+
+`ROUTE user:1` prints the selected node:
+
+```text
+key user:1 -> node node-127.0.0.1:6379
+```
+
 ## Protocol
 
 Supported user commands:
@@ -223,6 +273,9 @@ Now, when TTL is still positive, `GET token` returns `abc`; after expiration, `G
 - No automatic leader election.
 - No sentinel.
 - No binary replication protocol.
-- No consistent hashing yet.
+- No server-side cluster membership.
+- No automatic data migration.
+- No Redis Cluster hash slots.
+- No automatic failover.
 - No WAL rewrite / compaction.
-- Stage 9 will focus on consistent hashing and client routing.
+- Stage 10 will focus on pressure testing and documentation cleanup.

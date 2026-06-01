@@ -10,6 +10,8 @@ LightKV is organized as a small modular C++17 KV cache.
 - `net`: `TcpServer`, `TcpConnection`, `Buffer`
 - `persistence`: `Wal`, `WalReplayer`
 - `replication`: master/slave state and WAL-offset sync
+- `cluster`: `NodeInfo`, `ConsistentHash`
+- `client`: `LightKVClient`, `ClusterClient`
 
 ## Storage
 
@@ -93,6 +95,37 @@ replication_interval_ms=1000
 
 `Metrics` uses atomics for command counts, hits/misses, and connections. `INFO` returns a snapshot.
 
+## Consistent Hashing
+
+Stage 9 adds client-side sharding with a consistent hash ring.
+
+- `NodeInfo` stores node id, host, and port.
+- `ConsistentHash` uses `std::hash<std::string>`.
+- The ring is stored as `std::map<size_t, NodeInfo>`.
+- Real nodes are expanded into virtual nodes.
+- The default virtual node count is 100.
+- A virtual node key is `node_id#index`.
+- `getNode(key)` finds the first ring entry at or after the key hash and wraps to the beginning.
+- Removing a node erases all of its virtual nodes from the ring.
+
+The consistent hash implementation is independent of `TcpServer`; it lives in the `cluster` module.
+
+## Clients
+
+`LightKVClient` is a small single-node TCP client. It opens a short connection, sends one line, and reads a complete RESP-style response.
+
+`ClusterClient` owns a `ConsistentHash` and routes key-based commands:
+
+- `SET`
+- `GET`
+- `DEL`
+- `EXPIRE`
+- `TTL`
+
+`INFO` is not key-based, so `infoAll()` queries every configured node and concatenates the responses.
+
+Stage 9 only implements client-side routing. It does not move data when the ring changes and does not add server-side cluster awareness.
+
 ## Future Work
 
-Stage 9 will add consistent hashing and client routing. Raft, automatic election, sentinel, and binary replication are intentionally out of scope.
+Stage 10 will focus on pressure testing and documentation cleanup. Raft, automatic election, sentinel, Redis Cluster slots, and server-side cluster membership are intentionally out of scope.

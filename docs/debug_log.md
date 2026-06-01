@@ -33,3 +33,9 @@
 - No major issues.
 - Windows g++ validation covers platform-independent WAL offset, replayer, parser, replication state, and CommandExecutor behavior.
 - Full Linux TCP master/slave `nc` validation is left to the Ubuntu VM.
+
+## Stage 9
+
+- No major issues.
+- Windows g++ validation covers consistent hashing, ClusterClient routing, and cluster CLI parsing.
+- Full Linux TCP client and multi-node cluster CLI verification is left to the Ubuntu VM.

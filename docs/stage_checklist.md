@@ -9,5 +9,5 @@
 - [x] Stage 6: WAL persistence and recovery
 - [x] Stage 7: config, logger, metrics
 - [x] Stage 8: WAL-offset master/slave replication
-- [ ] Stage 9: consistent hashing and client routing
+- [x] Stage 9: consistent hashing and client routing
 - [ ] Stage 10: pressure testing and documentation cleanup

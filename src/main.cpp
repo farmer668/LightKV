@@ -240,7 +240,7 @@ void applyOverrides(ServerOptions& options, const ServerOptions& cli, const Serv
 
 int main(int argc, char* argv[]) {
     std::cout << "LightKV server starting..." << '\n';
-    std::cout << "Stage 8 - WAL-offset master slave replication" << '\n';
+    std::cout << "Stage 9 - consistent hashing and cluster client routing" << '\n';
 
     ServerOptions cli_options;
     ServerOverrides overrides;
