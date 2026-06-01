@@ -1,39 +1,39 @@
 # LightKV
 
-LightKV is a lightweight distributed KV cache system written in C++17.
+LightKV 是一个基于 C++17 实现的轻量级分布式 KV 缓存系统。
 
-It is a Redis-like learning and portfolio project. It does not depend on Redis. It references several Redis ideas, such as a text command protocol, TTL, LRU, WAL/AOF-style persistence, master/slave replication, and client-side sharding, but keeps the implementation intentionally small and readable.
+这是一个用于学习和展示 C++ 后端能力的 Redis-like 项目。LightKV 不依赖 Redis，只参考了 Redis 的部分核心设计思想，例如文本命令协议、TTL、LRU、WAL/AOF 风格持久化、主从复制和客户端侧分片，同时尽量保持实现小而清晰。
 
-## Project Goals
+## 项目目标
 
-LightKV is built to demonstrate C++ backend engineering ability:
+LightKV 用来展示以下 C++ 后端工程能力：
 
-- Linux socket and epoll network programming
-- Thread-safe in-memory storage
-- Cache expiration and eviction
-- WAL persistence and replay
-- Incremental master/slave replication
-- Client-side consistent-hash routing
-- Config, logging, metrics, tests, and benchmark tooling
+- Linux socket 与 epoll 网络编程
+- 线程安全的内存 KV 存储
+- 缓存过期与淘汰策略
+- WAL 持久化与重启恢复
+- 基于 WAL offset 的增量主从复制
+- 客户端侧一致性哈希路由
+- 配置、日志、指标、测试和压测工具
 
-## Features
+## 功能特性
 
 - C++17
-- Linux socket + epoll TCP server
-- RESP-like text responses
-- Thread-safe `KVStore`
-- TTL expiration
-- O(1) LRU eviction
-- WAL persistence and restart recovery
-- Config file and command-line options
-- Logger and INFO metrics
-- WAL-offset master/slave replication
-- Consistent hash ring with virtual nodes
-- Single-node `LightKVClient`
-- Multi-node `ClusterClient`
-- CLI, cluster CLI, and benchmark tool
+- Linux socket + epoll TCP Server
+- RESP-like 文本响应
+- 线程安全 `KVStore`
+- TTL 过期机制
+- O(1) LRU 淘汰
+- WAL 持久化与重启恢复
+- 配置文件与命令行参数
+- Logger 与 `INFO` Metrics
+- 基于 WAL offset 的 master/slave 复制
+- 带虚拟节点的一致性哈希环
+- 单节点 `LightKVClient`
+- 多节点 `ClusterClient`
+- 本地 CLI、Cluster CLI 和压测工具
 
-## Architecture
+## 架构
 
 ```text
 Client / nc / CLI / ClusterCLI
@@ -58,23 +58,23 @@ Tools:
 lightkv_cli / lightkv_cluster_cli / lightkv_bench
 ```
 
-## Stage History
+## 开发阶段
 
-- Stage 0: project scaffold
-- Stage 1: thread-safe in-memory KVStore
-- Stage 2: protocol parser and local CLI
-- Stage 3: Linux TCP epoll server
-- Stage 4: TTL expiration
-- Stage 5: LRU eviction
-- Stage 6: WAL persistence and recovery
-- Stage 7: Config, Logger, and Metrics
-- Stage 8: WAL-offset master/slave replication
-- Stage 9: consistent hash and ClusterClient routing
-- Stage 10: benchmark tool and final documentation
+- Stage 0：项目骨架
+- Stage 1：线程安全内存 KVStore
+- Stage 2：协议解析器与本地 CLI
+- Stage 3：Linux TCP epoll server
+- Stage 4：TTL 过期机制
+- Stage 5：LRU 淘汰机制
+- Stage 6：WAL 持久化与恢复
+- Stage 7：Config、Logger 和 Metrics
+- Stage 8：基于 WAL offset 的 master/slave 复制
+- Stage 9：一致性哈希与 ClusterClient 路由
+- Stage 10：压测工具与最终文档整理
 
-## Build And Run
+## 编译与运行
 
-Ubuntu:
+Ubuntu 下执行：
 
 ```sh
 make
@@ -84,23 +84,23 @@ make cli
 make bench
 ```
 
-`make` is equivalent to `make build`.
+`make` 等价于 `make build`。
 
-Manual benchmark command:
+手动执行压测：
 
 ```sh
 ./build/lightkv_bench --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --read-ratio 0.8
 ```
 
-## Single Node Example
+## 单节点使用示例
 
-Start server:
+启动 server：
 
 ```sh
 ./build/lightkv_server --host 127.0.0.1 --port 6379
 ```
 
-Use `nc`:
+使用 `nc` 连接后输入：
 
 ```text
 PING
@@ -110,7 +110,7 @@ DEL name
 INFO
 ```
 
-Example responses:
+响应示例：
 
 ```text
 +PONG
@@ -120,7 +120,7 @@ yifei
 :1
 ```
 
-## TTL Example
+## TTL 示例
 
 ```text
 SET token abc
@@ -129,17 +129,17 @@ TTL token
 GET token
 ```
 
-Before expiration, `GET token` returns `abc`. After expiration, `GET token` returns `$-1` and `TTL token` returns `:-2`.
+过期前，`GET token` 返回 `abc`。过期后，`GET token` 返回 `$-1`，`TTL token` 返回 `:-2`。
 
-## LRU Example
+## LRU 示例
 
-Start with a small capacity:
+使用较小容量启动：
 
 ```sh
 ./build/lightkv_server --max-keys 2
 ```
 
-Then:
+然后输入：
 
 ```text
 SET a 1
@@ -149,15 +149,15 @@ SET c 3
 GET b
 ```
 
-`GET a` refreshes `a`, so `b` is the least recently used key and can be evicted when `c` is inserted.
+`GET a` 会刷新 `a` 的 LRU 位置，因此插入 `c` 时，最近最少使用的 `b` 可能被淘汰。
 
-## WAL Example
+## WAL 示例
 
 ```sh
 ./build/lightkv_server --wal-path data/lightkv.wal
 ```
 
-Commands:
+命令：
 
 ```text
 SET persist hello
@@ -165,9 +165,9 @@ DEL old_key
 EXPIRE temp 30
 ```
 
-Successful `SET`, `DEL`, and `EXPIRE` append WAL. On restart, LightKV replays WAL to rebuild memory state.
+成功的 `SET`、`DEL` 和 `EXPIRE` 会追加写入 WAL。服务重启时，LightKV 会 replay WAL 来恢复内存状态。
 
-WAL record format since Stage 8:
+Stage 8 之后的 WAL 记录格式：
 
 ```text
 1|SET a 1
@@ -175,21 +175,21 @@ WAL record format since Stage 8:
 3|DEL a
 ```
 
-## Config, Logger, Metrics
+## Config、Logger、Metrics
 
-Server defaults to:
+server 默认尝试读取：
 
 ```text
 config/lightkv.example.conf
 ```
 
-Priority:
+配置优先级：
 
 ```text
-command line arguments > config file > defaults
+命令行参数 > 配置文件 > 默认值
 ```
 
-Example config:
+配置示例：
 
 ```text
 host=127.0.0.1
@@ -201,7 +201,7 @@ log_level=INFO
 role=master
 ```
 
-`INFO` returns KV, WAL, replication, and metrics fields:
+`INFO` 返回 KV、WAL、复制状态和 Metrics 字段：
 
 ```text
 keys:2
@@ -220,9 +220,9 @@ misses:1
 current_connections:1
 ```
 
-## Master/Slave Replication
+## 主从复制
 
-Start master:
+启动 master：
 
 ```sh
 ./build/lightkv_server \
@@ -232,7 +232,7 @@ Start master:
   --wal-path data/master.wal
 ```
 
-Start slave:
+启动 slave：
 
 ```sh
 ./build/lightkv_server \
@@ -244,7 +244,7 @@ Start slave:
   --wal-path data/slave.wal
 ```
 
-Verification:
+验证：
 
 ```text
 # master
@@ -255,7 +255,7 @@ GET a
 SET b 2
 ```
 
-Expected on slave:
+slave 上的预期结果：
 
 ```text
 $1
@@ -263,11 +263,11 @@ $1
 -ERR slave is read-only
 ```
 
-Replication is simplified. Slave periodically sends `SYNC offset`, receives newer WAL records, and replays them locally without writing WAL again.
+复制逻辑是简化实现。slave 周期性发送 `SYNC offset`，接收 master 返回的新 WAL 记录，并在本地 replay，replay 过程不会再次写 WAL。
 
-## Consistent Hash And ClusterClient
+## 一致性哈希与 ClusterClient
 
-Start three independent nodes:
+启动三个独立节点：
 
 ```sh
 ./build/lightkv_server --host 127.0.0.1 --port 6379 --wal-path data/node1.wal
@@ -275,13 +275,13 @@ Start three independent nodes:
 ./build/lightkv_server --host 127.0.0.1 --port 6381 --wal-path data/node3.wal
 ```
 
-Start cluster CLI:
+启动 cluster CLI：
 
 ```sh
 ./build/lightkv_cluster_cli --nodes 127.0.0.1:6379,127.0.0.1:6380,127.0.0.1:6381
 ```
 
-Commands:
+命令：
 
 ```text
 ROUTE user:1
@@ -290,23 +290,23 @@ GET user:1
 INFO
 ```
 
-`ROUTE` shows which node owns a key:
+`ROUTE` 会显示某个 key 被路由到哪个节点：
 
 ```text
 key user:1 -> node node-127.0.0.1:6379
 ```
 
-Consistent hashing is client-side only. LightKV does not perform server-side cluster membership or automatic data migration.
+一致性哈希只做客户端侧路由。LightKV 当前不做服务端集群成员感知，也不做自动数据迁移。
 
-## Benchmark
+## 压测工具
 
-Run:
+运行：
 
 ```sh
 ./build/lightkv_bench --host 127.0.0.1 --port 6379 --clients 10 --requests 1000 --value-size 16 --read-ratio 0.8
 ```
 
-Output fields:
+输出字段：
 
 ```text
 LightKV Bench Result
@@ -323,43 +323,43 @@ p95_latency_ms: ...
 p99_latency_ms: ...
 ```
 
-Real benchmark results should be filled in after Ubuntu validation:
+真实压测结果应在 Ubuntu 验证后补充：
 
 | clients | requests | read_ratio | QPS | avg latency | p95 | p99 |
 | --- | --- | --- | --- | --- | --- | --- |
-| To be measured | To be measured | To be measured | To be measured | To be measured | To be measured | To be measured |
+| 待实测 | 待实测 | 待实测 | 待实测 | 待实测 | 待实测 | 待实测 |
 
-## Relationship With Redis
+## 与 Redis 的关系
 
-- LightKV is not a Redis replacement.
-- LightKV does not depend on Redis.
-- It is a simplified C++17 implementation inspired by several Redis design ideas.
-- It does not support full RESP, RDB, AOF rewrite, Redis Cluster slots, Sentinel, Lua, transactions, modules, or Redis compatibility guarantees.
+- LightKV 不是 Redis 的替代品。
+- LightKV 不依赖 Redis。
+- LightKV 是一个受 Redis 部分设计思想启发的 C++17 简化实现。
+- LightKV 不支持完整 RESP、RDB、AOF rewrite、Redis Cluster slots、Sentinel、Lua、事务、模块或 Redis 兼容性保证。
 
-## Known Limits
+## 已知限制
 
-- Values do not support spaces.
-- WAL rewrite / compaction is not implemented.
-- `EXPIRE` replay uses simplified relative time.
-- Master/slave replication is eventually synchronized and does not provide strong consistency.
-- No automatic leader election.
-- No automatic failover.
-- Consistent hashing is client-side routing only and does not migrate data.
-- No connection pool yet.
-- No full Redis protocol compatibility.
+- value 暂不支持空格。
+- WAL 暂未实现 rewrite / compaction。
+- `EXPIRE` replay 使用简化的相对时间语义。
+- 主从复制是最终同步，不提供强一致性保证。
+- 没有自动选主。
+- 没有自动故障转移。
+- 一致性哈希只做客户端侧路由，不做数据迁移。
+- 当前没有连接池。
+- 当前没有完整 Redis 协议兼容。
 
-## Future Work
+## 后续计划
 
-- Support a RESP subset.
-- Add WAL rewrite / compaction.
-- Add a better async write queue.
-- Add client connection pooling.
-- Expand benchmark scenarios.
-- Integrate with LightAgent Gateway as a Prompt/RAG cache layer.
+- 支持 RESP 子集。
+- 增加 WAL rewrite / compaction。
+- 增加更完善的异步写队列。
+- 增加客户端连接池。
+- 扩展压测场景。
+- 接入 LightAgent Gateway，作为 Prompt/RAG 缓存层。
 
-## Resume Highlights
+## 简历亮点
 
-- Built a C++17 Redis-like KV cache with Linux socket + epoll TCP server, text protocol parsing, and RESP-like responses.
-- Implemented TTL, LRU, WAL recovery, INFO metrics, and config/logging support.
-- Implemented WAL-offset master/slave replication and slave read-only enforcement.
-- Implemented consistent hashing, ClusterClient routing, and a benchmark tool with QPS and latency percentiles.
+- 基于 C++17 实现 Redis-like KV 缓存，包含 Linux socket + epoll TCP Server、文本协议解析和 RESP-like 响应。
+- 实现 TTL、LRU、WAL 恢复、`INFO` Metrics，以及配置和日志能力。
+- 实现基于 WAL offset 的 master/slave 复制和 slave 只读保护。
+- 实现一致性哈希、ClusterClient 路由，以及统计 QPS 和延迟分位数的压测工具。
