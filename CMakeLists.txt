@@ -20,6 +20,7 @@ endif()
 
 set(LIGHTKV_CORE_SOURCES
     src/common/Status.cpp
+    src/storage/LRUCache.cpp
     src/storage/KVStore.cpp
 )
 
@@ -144,3 +145,16 @@ target_include_directories(test_ttl_regression PRIVATE
 )
 
 add_test(NAME test_ttl_regression COMMAND test_ttl_regression)
+
+add_executable(test_lru
+    tests/test_lru.cpp
+    ${LIGHTKV_CORE_SOURCES}
+)
+
+target_include_directories(test_lru PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+target_link_libraries(test_lru PRIVATE Threads::Threads)
+
+add_test(NAME test_lru COMMAND test_lru)

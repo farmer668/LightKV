@@ -30,8 +30,8 @@ std::string errnoMessage(const std::string& prefix) {
 
 }  // namespace
 
-TcpServer::TcpServer(std::string host, int port)
-    : host_(std::move(host)), port_(port), executor_(store_) {}
+TcpServer::TcpServer(std::string host, int port, size_t max_keys)
+    : host_(std::move(host)), port_(port), store_(max_keys), executor_(store_) {}
 
 TcpServer::~TcpServer() {
     stopExpireWorker();

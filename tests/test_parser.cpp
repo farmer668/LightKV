@@ -47,6 +47,10 @@ int main() {
     assert(command.args[0] == "name");
     assert(command.args[1] == "10");
 
+    command = parser.parseLine("INFO");
+    assertType(command, lightkv::CommandType::Info);
+    assert(command.args.empty());
+
     command = parser.parseLine("SIZE");
     assertType(command, lightkv::CommandType::Size);
     assert(command.args.empty());
@@ -91,6 +95,10 @@ int main() {
     assert(command.args.size() == 2);
     assert(command.args[0] == "name");
     assert(command.args[1] == "10");
+
+    command = parser.parseLine("info");
+    assertType(command, lightkv::CommandType::Info);
+    assert(command.args.empty());
 
     command = parser.parseLine("   ");
     assert(command.type == lightkv::CommandType::Invalid);

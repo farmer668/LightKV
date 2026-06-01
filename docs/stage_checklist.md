@@ -1,14 +1,11 @@
 # 阶段检查清单
 
 - [x] Stage 0：项目骨架
-- [x] Windows scaffold build supported
-- [x] Linux final target planned
-- [x] epoll implemented in Linux stage
 - [x] Stage 1：单机线程安全 KVStore
 - [x] Stage 2：文本协议解析和本地 CLI
 - [x] Stage 3：Linux TCP Server + epoll
 - [x] Stage 4：TTL 过期机制
-- [ ] Stage 5：LRU 淘汰
+- [x] Stage 5：LRU 淘汰机制
 - [ ] Stage 6：WAL 持久化恢复
 - [ ] Stage 7：配置、日志、metrics
 - [ ] Stage 8：主从复制

@@ -12,6 +12,7 @@ enum class CommandType {
     Del,
     Exists,
     Expire,
+    Info,
     Size,
     Ttl,
     Clear,

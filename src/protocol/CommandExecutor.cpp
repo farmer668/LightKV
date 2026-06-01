@@ -81,6 +81,11 @@ std::string CommandExecutor::execute(const Command& command) {
             }
             return Response::integer(store_.expire(command.args[0], seconds) ? 1 : 0);
         }
+        case CommandType::Info:
+            if (!hasArgCount(command, 0)) {
+                return Response::error("wrong number of arguments");
+            }
+            return Response::bulkString(store_.info());
         case CommandType::Size:
             if (!hasArgCount(command, 0)) {
                 return Response::error("wrong number of arguments");

@@ -57,6 +57,7 @@ Command Parser::parseLine(const std::string& line) const {
         {"DEL", CommandType::Del},
         {"EXISTS", CommandType::Exists},
         {"EXPIRE", CommandType::Expire},
+        {"INFO", CommandType::Info},
         {"SIZE", CommandType::Size},
         {"TTL", CommandType::Ttl},
         {"CLEAR", CommandType::Clear},
@@ -76,6 +77,7 @@ Command Parser::parseLine(const std::string& line) const {
 
     switch (command.type) {
         case CommandType::Ping:
+        case CommandType::Info:
         case CommandType::Size:
         case CommandType::Clear:
         case CommandType::Quit:

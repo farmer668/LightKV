@@ -22,6 +22,12 @@ int main() {
     assert(executor.execute(parser.parseLine("EXISTS name")) == ":1\r\n");
     assert(executor.execute(parser.parseLine("EXISTS missing")) == ":0\r\n");
 
+    const auto info_response = executor.execute(parser.parseLine("INFO"));
+    assert(info_response.find("keys:1") != std::string::npos);
+    assert(info_response.find("max_keys:10000") != std::string::npos);
+    assert(info_response.find("evicted_keys:0") != std::string::npos);
+    assert(info_response.find("expired_keys:0") != std::string::npos);
+
     assert(executor.execute(parser.parseLine("SIZE")) == ":1\r\n");
 
     assert(executor.execute(parser.parseLine("DEL name")) == ":1\r\n");

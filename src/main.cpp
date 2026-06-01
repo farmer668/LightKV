@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstddef>
 #include <string>
 
 #ifdef LIGHTKV_ENABLE_TCP_SERVER
@@ -8,10 +9,24 @@
 namespace {
 
 void printUsage(const char* program) {
-    std::cerr << "Usage: " << program << " [--host HOST] [--port PORT]\n";
+    std::cerr << "Usage: " << program << " [--host HOST] [--port PORT] [--max-keys COUNT]\n";
 }
 
-bool parseArgs(int argc, char* argv[], std::string& host, int& port) {
+bool parseSizeArg(const std::string& text, size_t& value) {
+    try {
+        std::size_t parsed = 0;
+        const unsigned long long parsed_value = std::stoull(text, &parsed, 10);
+        if (parsed != text.size()) {
+            return false;
+        }
+        value = static_cast<size_t>(parsed_value);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool parseArgs(int argc, char* argv[], std::string& host, int& port, size_t& max_keys) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--host") {
@@ -42,6 +57,13 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port) {
             continue;
         }
 
+        if (arg == "--max-keys") {
+            if (i + 1 >= argc || !parseSizeArg(argv[++i], max_keys)) {
+                return false;
+            }
+            continue;
+        }
+
         return false;
     }
 
@@ -52,11 +74,12 @@ bool parseArgs(int argc, char* argv[], std::string& host, int& port) {
 
 int main(int argc, char* argv[]) {
     std::cout << "LightKV server starting..." << '\n';
-    std::cout << "Stage 4 - TTL expiration" << '\n';
+    std::cout << "Stage 5 - LRU eviction" << '\n';
 
     std::string host = "127.0.0.1";
     int port = 6379;
-    if (!parseArgs(argc, argv, host, port)) {
+    size_t max_keys = 10000;
+    if (!parseArgs(argc, argv, host, port, max_keys)) {
         printUsage(argv[0]);
         return 1;
     }
@@ -64,7 +87,7 @@ int main(int argc, char* argv[]) {
 #ifdef LIGHTKV_ENABLE_TCP_SERVER
     std::cout << "Platform: Linux/Unix target build" << '\n';
 
-    lightkv::TcpServer server(host, port);
+    lightkv::TcpServer server(host, port, max_keys);
     if (!server.start()) {
         return 1;
     }

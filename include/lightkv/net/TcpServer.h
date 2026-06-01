@@ -6,6 +6,7 @@
 #include "lightkv/storage/KVStore.h"
 
 #include <atomic>
+#include <cstddef>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -14,7 +15,7 @@ namespace lightkv {
 
 class TcpServer {
 public:
-    TcpServer(std::string host, int port);
+    TcpServer(std::string host, int port, size_t max_keys = 10000);
     ~TcpServer();
 
     bool start();
