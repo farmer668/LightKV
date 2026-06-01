@@ -19,6 +19,9 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 set(LIGHTKV_CORE_SOURCES
+    src/common/Config.cpp
+    src/common/Logger.cpp
+    src/common/Metrics.cpp
     src/common/Status.cpp
     src/storage/LRUCache.cpp
     src/storage/KVStore.cpp
@@ -171,3 +174,37 @@ target_include_directories(test_wal PRIVATE
 )
 
 add_test(NAME test_wal COMMAND test_wal)
+
+add_executable(test_config
+    tests/test_config.cpp
+    src/common/Config.cpp
+    src/common/Logger.cpp
+)
+
+target_include_directories(test_config PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_config COMMAND test_config)
+
+add_executable(test_logger
+    tests/test_logger.cpp
+    src/common/Logger.cpp
+)
+
+target_include_directories(test_logger PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_logger COMMAND test_logger)
+
+add_executable(test_metrics
+    tests/test_metrics.cpp
+    src/common/Metrics.cpp
+)
+
+target_include_directories(test_metrics PRIVATE
+    ${PROJECT_SOURCE_DIR}/include
+)
+
+add_test(NAME test_metrics COMMAND test_metrics)

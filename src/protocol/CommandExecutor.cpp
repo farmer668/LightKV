@@ -32,19 +32,62 @@ bool parseSeconds(const std::string& text, int& seconds) {
     }
 }
 
+void recordCommand(Metrics* metrics, CommandType type) {
+    if (metrics == nullptr) {
+        return;
+    }
+
+    metrics->incTotalCommands();
+    switch (type) {
+        case CommandType::Ping:
+            metrics->incPingCommands();
+            break;
+        case CommandType::Set:
+            metrics->incSetCommands();
+            break;
+        case CommandType::Get:
+            metrics->incGetCommands();
+            break;
+        case CommandType::Del:
+            metrics->incDelCommands();
+            break;
+        case CommandType::Exists:
+            metrics->incExistsCommands();
+            break;
+        case CommandType::Expire:
+            metrics->incExpireCommands();
+            break;
+        case CommandType::Ttl:
+            metrics->incTtlCommands();
+            break;
+        case CommandType::Info:
+            metrics->incInfoCommands();
+            break;
+        case CommandType::Size:
+        case CommandType::Clear:
+        case CommandType::Quit:
+        case CommandType::Invalid:
+            break;
+    }
+}
+
 }  // namespace
 
 CommandExecutor::CommandExecutor(
     KVStore& store,
     Wal* wal,
     bool wal_enabled,
-    std::string wal_path)
+    std::string wal_path,
+    Metrics* metrics)
     : store_(store),
       wal_(wal),
       wal_enabled_(wal_enabled),
-      wal_path_(std::move(wal_path)) {}
+      wal_path_(std::move(wal_path)),
+      metrics_(metrics) {}
 
 std::string CommandExecutor::execute(const Command& command) {
+    recordCommand(metrics_, command.type);
+
     switch (command.type) {
         case CommandType::Ping:
             if (!hasArgCount(command, 0)) {
@@ -70,7 +113,13 @@ std::string CommandExecutor::execute(const Command& command) {
             }
             const auto value = store_.get(command.args[0]);
             if (!value.has_value()) {
+                if (metrics_ != nullptr) {
+                    metrics_->incMisses();
+                }
                 return Response::nullBulkString();
+            }
+            if (metrics_ != nullptr) {
+                metrics_->incHits();
             }
             return Response::bulkString(value.value());
         }
@@ -120,6 +169,9 @@ std::string CommandExecutor::execute(const Command& command) {
                 info << "wal_enabled:" << (wal_enabled_ ? "true" : "false") << '\n';
                 info << "wal_path:" << wal_path_ << '\n';
                 info << "wal_records:" << ((wal_enabled_ && wal_ != nullptr) ? wal_->recordsWritten() : 0);
+                if (metrics_ != nullptr) {
+                    info << '\n' << metrics_->toString();
+                }
                 return Response::bulkString(info.str());
             }
         case CommandType::Size:

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "lightkv/common/Metrics.h"
 #include "lightkv/net/TcpConnection.h"
 #include "lightkv/persistence/Wal.h"
 #include "lightkv/protocol/CommandExecutor.h"
@@ -46,6 +47,7 @@ private:
     KVStore store_;
     Wal wal_;
     Parser parser_;
+    Metrics metrics_;
     CommandExecutor executor_;
     std::unordered_map<int, TcpConnection> connections_;
     std::atomic<bool> running_{false};

@@ -1,5 +1,6 @@
 #include "lightkv/protocol/CommandExecutor.h"
 #include "lightkv/protocol/Parser.h"
+#include "lightkv/common/Metrics.h"
 #include "lightkv/storage/KVStore.h"
 
 #include <cassert>
@@ -10,7 +11,8 @@
 int main() {
     lightkv::KVStore store;
     lightkv::Parser parser;
-    lightkv::CommandExecutor executor(store);
+    lightkv::Metrics metrics;
+    lightkv::CommandExecutor executor(store, nullptr, false, "", &metrics);
 
     assert(executor.execute(parser.parseLine("PING")) == "+PONG\r\n");
 
@@ -29,6 +31,14 @@ int main() {
     assert(info_response.find("expired_keys:0") != std::string::npos);
     assert(info_response.find("wal_enabled:false") != std::string::npos);
     assert(info_response.find("wal_records:0") != std::string::npos);
+    assert(info_response.find("total_commands:7") != std::string::npos);
+    assert(info_response.find("ping_commands:1") != std::string::npos);
+    assert(info_response.find("get_commands:2") != std::string::npos);
+    assert(info_response.find("set_commands:1") != std::string::npos);
+    assert(info_response.find("exists_commands:2") != std::string::npos);
+    assert(info_response.find("info_commands:1") != std::string::npos);
+    assert(info_response.find("hits:1") != std::string::npos);
+    assert(info_response.find("misses:1") != std::string::npos);
 
     assert(executor.execute(parser.parseLine("SIZE")) == ":1\r\n");
 

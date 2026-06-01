@@ -1,5 +1,7 @@
 #include "lightkv/net/TcpServer.h"
 
+#include "lightkv/common/Logger.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -42,7 +44,7 @@ TcpServer::TcpServer(
       wal_path_(std::move(wal_path)),
       store_(max_keys),
       wal_(wal_path_),
-      executor_(store_, wal_enabled_ ? &wal_ : nullptr, wal_enabled_, wal_path_) {}
+      executor_(store_, wal_enabled_ ? &wal_ : nullptr, wal_enabled_, wal_path_, &metrics_) {}
 
 TcpServer::~TcpServer() {
     stopExpireWorker();
@@ -65,9 +67,10 @@ bool TcpServer::start() {
     ::signal(SIGPIPE, SIG_IGN);
 
     if (wal_enabled_) {
-        replayWalFile(wal_, store_);
+        const auto replayed = replayWalFile(wal_, store_);
+        Logger::instance().info("WAL replay complete, records applied: " + std::to_string(replayed));
         if (!wal_.open()) {
-            std::cerr << "failed to open WAL: " << wal_path_ << '\n';
+            Logger::instance().error("failed to open WAL: " + wal_path_);
             return false;
         }
     }
@@ -79,6 +82,7 @@ bool TcpServer::start() {
     epoll_fd_ = ::epoll_create1(0);
     if (epoll_fd_ < 0) {
         std::cerr << errnoMessage("epoll_create1 failed") << '\n';
+        Logger::instance().error(errnoMessage("epoll_create1 failed"));
         return false;
     }
 
@@ -87,9 +91,11 @@ bool TcpServer::start() {
     event.data.fd = listen_fd_;
     if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, listen_fd_, &event) < 0) {
         std::cerr << errnoMessage("epoll_ctl add listen fd failed") << '\n';
+        Logger::instance().error(errnoMessage("epoll_ctl add listen fd failed"));
         return false;
     }
 
+    Logger::instance().info("TCP server started on " + host_ + ":" + std::to_string(port_));
     startExpireWorker();
     return true;
 }
@@ -104,6 +110,7 @@ void TcpServer::run() {
                 continue;
             }
             std::cerr << errnoMessage("epoll_wait failed") << '\n';
+            Logger::instance().error(errnoMessage("epoll_wait failed"));
             break;
         }
 
@@ -130,12 +137,14 @@ bool TcpServer::setupListenSocket() {
     listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd_ < 0) {
         std::cerr << errnoMessage("socket failed") << '\n';
+        Logger::instance().error(errnoMessage("socket failed"));
         return false;
     }
 
     int reuse = 1;
     if (::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         std::cerr << errnoMessage("setsockopt SO_REUSEADDR failed") << '\n';
+        Logger::instance().error(errnoMessage("setsockopt SO_REUSEADDR failed"));
         return false;
     }
 
@@ -144,16 +153,19 @@ bool TcpServer::setupListenSocket() {
     addr.sin_port = htons(static_cast<uint16_t>(port_));
     if (::inet_pton(AF_INET, host_.c_str(), &addr.sin_addr) != 1) {
         std::cerr << "invalid bind host: " << host_ << '\n';
+        Logger::instance().error("invalid bind host: " + host_);
         return false;
     }
 
     if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0) {
         std::cerr << errnoMessage("bind failed") << '\n';
+        Logger::instance().error(errnoMessage("bind failed"));
         return false;
     }
 
     if (::listen(listen_fd_, kBacklog) < 0) {
         std::cerr << errnoMessage("listen failed") << '\n';
+        Logger::instance().error(errnoMessage("listen failed"));
         return false;
     }
 
@@ -187,11 +199,13 @@ bool TcpServer::setNonBlocking(int fd) {
     const int flags = ::fcntl(fd, F_GETFL, 0);
     if (flags < 0) {
         std::cerr << errnoMessage("fcntl F_GETFL failed") << '\n';
+        Logger::instance().error(errnoMessage("fcntl F_GETFL failed"));
         return false;
     }
 
     if (::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
         std::cerr << errnoMessage("fcntl F_SETFL failed") << '\n';
+        Logger::instance().error(errnoMessage("fcntl F_SETFL failed"));
         return false;
     }
 
@@ -211,6 +225,7 @@ void TcpServer::handleAccept() {
                 continue;
             }
             std::cerr << errnoMessage("accept failed") << '\n';
+            Logger::instance().warn(errnoMessage("accept failed"));
             return;
         }
 
@@ -224,6 +239,7 @@ void TcpServer::handleAccept() {
         event.data.fd = client_fd;
         if (::epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, client_fd, &event) < 0) {
             std::cerr << errnoMessage("epoll_ctl add client fd failed") << '\n';
+            Logger::instance().warn(errnoMessage("epoll_ctl add client fd failed"));
             ::close(client_fd);
             continue;
         }
@@ -232,7 +248,9 @@ void TcpServer::handleAccept() {
         ::inet_ntop(AF_INET, &client_addr.sin_addr, ip, sizeof(ip));
         std::string peer = std::string(ip) + ":" + std::to_string(ntohs(client_addr.sin_port));
         connections_.emplace(client_fd, TcpConnection(client_fd, peer));
+        metrics_.incConnection();
         std::cout << "client connected: " << peer << '\n';
+        Logger::instance().info("client connected: " + peer);
     }
 }
 
@@ -280,6 +298,7 @@ void TcpServer::handleClientRead(int client_fd) {
         }
 
         std::cerr << errnoMessage("recv failed") << '\n';
+        Logger::instance().warn(errnoMessage("recv failed"));
         closeConnection(client_fd);
         return;
     }
@@ -305,10 +324,12 @@ bool TcpServer::sendResponse(int client_fd, const std::string& response) {
 
         if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             std::cerr << "send would block; closing connection\n";
+            Logger::instance().warn("send would block; closing connection");
             return false;
         }
 
         std::cerr << errnoMessage("send failed") << '\n';
+        Logger::instance().warn(errnoMessage("send failed"));
         return false;
     }
 
@@ -320,7 +341,9 @@ void TcpServer::closeConnection(int client_fd) {
     if (conn_it != connections_.end()) {
         conn_it->second.markClosed();
         std::cout << "client disconnected: " << conn_it->second.peerAddr() << '\n';
+        Logger::instance().info("client disconnected: " + conn_it->second.peerAddr());
         connections_.erase(conn_it);
+        metrics_.decConnection();
     }
 
     if (epoll_fd_ >= 0) {
